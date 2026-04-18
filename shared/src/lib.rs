@@ -3,18 +3,40 @@ use std::collections::BTreeMap;
 
 pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0";
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
+#[repr(u8)]
 pub enum RequestType {
-    Ntp = 0,
-    Http = 1,
-    Https = 2,
+    #[default]
+    Ntp,
+    Http,
+    Https,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum SyncMode {
+    #[default]
+    Off,
+    Immediate,
+    Slew,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+#[repr(u8)]
+pub enum Agreement {
+    NtpOnly,
+    HttpOnly,
+    #[default]
+    Mixed,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HostConfig {
-    pub request_type: u8,
+    pub request_type: RequestType,
     pub priority: u32,
     pub enabled: bool,
 }
@@ -22,7 +44,7 @@ pub struct HostConfig {
 impl Default for HostConfig {
     fn default() -> Self {
         Self {
-            request_type: RequestType::Ntp as u8,
+            request_type: RequestType::default(),
             priority: 0,
             enabled: true,
         }
@@ -32,16 +54,14 @@ impl Default for HostConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
-    pub sync_mode: u8,
-    pub high_precision_supported: bool,
-    pub offset_seconds: f64,
-    pub deviation_offset_seconds: f64,
-    pub verbose: bool,
+    pub sync_mode: SyncMode,
+    pub offset_ms: u64,
+    pub deviation_offset_ms: u64,
     pub disable_win32_time: bool,
-    pub delay_seconds: f64,
-    pub timeout_ms: f64,
-    pub network_timeout_ms: f64,
-    pub agreement: u8,
+    pub delay_ms: u64,
+    pub timeout_ms: u64,
+    pub network_timeout_ms: u64,
+    pub agreement: Agreement,
     pub user_agent: String,
     pub hosts: BTreeMap<String, HostConfig>,
     pub web_port: u16,
@@ -55,7 +75,7 @@ impl Default for AppConfig {
         hosts.insert(
             "ntp.tencent.com".to_string(),
             HostConfig {
-                request_type: RequestType::Ntp as u8,
+                request_type: RequestType::Ntp,
                 priority: 0,
                 enabled: true,
             },
@@ -63,7 +83,7 @@ impl Default for AppConfig {
         hosts.insert(
             "ntp.aliyun.com".to_string(),
             HostConfig {
-                request_type: RequestType::Ntp as u8,
+                request_type: RequestType::Ntp,
                 priority: 0,
                 enabled: true,
             },
@@ -71,7 +91,7 @@ impl Default for AppConfig {
         hosts.insert(
             "time.cloudflare.com".to_string(),
             HostConfig {
-                request_type: RequestType::Ntp as u8,
+                request_type: RequestType::Ntp,
                 priority: 0,
                 enabled: true,
             },
@@ -79,7 +99,7 @@ impl Default for AppConfig {
         hosts.insert(
             "time.asia.apple.com".to_string(),
             HostConfig {
-                request_type: RequestType::Ntp as u8,
+                request_type: RequestType::Ntp,
                 priority: 0,
                 enabled: true,
             },
@@ -87,7 +107,7 @@ impl Default for AppConfig {
         hosts.insert(
             "rhel.pool.ntp.org".to_string(),
             HostConfig {
-                request_type: RequestType::Ntp as u8,
+                request_type: RequestType::Ntp,
                 priority: 0,
                 enabled: true,
             },
@@ -95,7 +115,7 @@ impl Default for AppConfig {
         hosts.insert(
             "www.baidu.com".to_string(),
             HostConfig {
-                request_type: RequestType::Http as u8,
+                request_type: RequestType::Http,
                 priority: 1,
                 enabled: true,
             },
@@ -103,7 +123,7 @@ impl Default for AppConfig {
         hosts.insert(
             "www.qq.com".to_string(),
             HostConfig {
-                request_type: RequestType::Http as u8,
+                request_type: RequestType::Http,
                 priority: 1,
                 enabled: true,
             },
@@ -111,23 +131,21 @@ impl Default for AppConfig {
         hosts.insert(
             "www.163.com".to_string(),
             HostConfig {
-                request_type: RequestType::Http as u8,
+                request_type: RequestType::Http,
                 priority: 1,
                 enabled: true,
             },
         );
 
         Self {
-            sync_mode: 0,
-            high_precision_supported: false,
-            offset_seconds: 0.0,
-            deviation_offset_seconds: 0.0,
-            verbose: false,
+            sync_mode: SyncMode::default(),
+            offset_ms: 0,
+            deviation_offset_ms: 0,
             disable_win32_time: false,
-            delay_seconds: 3600.0,
-            timeout_ms: 30_000.0,
-            network_timeout_ms: 5_000.0,
-            agreement: 2,
+            delay_ms: 3_600_000,
+            timeout_ms: 30_000,
+            network_timeout_ms: 5_000,
+            agreement: Agreement::default(),
             user_agent: DEFAULT_USER_AGENT.to_string(),
             hosts,
             web_port: 8081,

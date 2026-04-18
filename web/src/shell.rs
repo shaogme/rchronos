@@ -440,6 +440,7 @@ pub fn AppShell() -> impl View {
         }),
         apply_config: Mutation::new(|toml: String| async move {
             HttpClient::post("/api/config")
+                .header("Content-Type", "application/json")
                 .json_body(ConfigForm { toml })
                 .send()
                 .await?;

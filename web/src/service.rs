@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use silex::prelude::*;
 
-pub use rchronos_shared::{AppConfig, RuntimeSnapshot};
+pub use rchronos_shared::{Agreement, AppConfig, RequestType, RuntimeSnapshot, SyncMode};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ConfigForm {

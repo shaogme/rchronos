@@ -9,7 +9,7 @@ use crate::config::AppConfig;
 use crate::{AppError, Result};
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike, Utc};
 use httpdate::parse_http_date;
-use rchronos_shared::RequestType;
+use rchronos_shared::{Agreement, RequestType, SyncMode};
 use reqwest::blocking::Client;
 
 use windows::Win32::{
@@ -51,7 +51,7 @@ pub struct SyncReport {
     pub remote_utc: DateTime<Utc>,
     pub applied_utc: DateTime<Utc>,
     pub local_before: DateTime<Local>,
-    pub deviation_ms: i64,
+    pub deviation_ms: u64,
     pub corrected: bool,
     pub method: String,
 }
@@ -77,9 +77,7 @@ pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport
     let _ = apply_windows_time_policy(config.disable_win32_time);
 
     let client = Client::builder()
-        .timeout(Duration::from_secs_f64(
-            (config.network_timeout_ms.max(1.0)) / 1000.0,
-        ))
+        .timeout(Duration::from_millis(config.network_timeout_ms.max(1)))
         .build()
         .map_err(|e| AppError::msg(format!("build HTTP client: {e}")))?;
 
@@ -93,13 +91,11 @@ pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport
             Ok(remote_utc) => {
                 let local_before = Local::now();
                 let adjusted_utc = remote_utc
-                    + chrono::Duration::milliseconds(
-                        (config.offset_seconds * 1000.0).round() as i64
-                    );
+                    + chrono::Duration::milliseconds(config.offset_ms as i64);
                 let now_utc = Utc::now();
-                let deviation_ms = (adjusted_utc - now_utc).num_milliseconds().abs();
+                let deviation_ms = (adjusted_utc - now_utc).num_milliseconds().unsigned_abs();
 
-                if deviation_ms as f64 <= config.deviation_offset_seconds.max(0.0) * 1000.0 {
+                if deviation_ms <= config.deviation_offset_ms {
                     return Ok(SyncReport {
                         server: host.name,
                         request_type: host.request_type,
@@ -113,11 +109,20 @@ pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport
                 }
 
                 let method = match config.sync_mode {
-                    2 => adjust_clock_precise(adjusted_utc)
-                        .or_else(|_| set_system_time_direct(adjusted_utc))?,
-                    3 => adjust_clock_legacy(adjusted_utc)
-                        .or_else(|_| set_system_time_direct(adjusted_utc))?,
-                    _ => set_system_time_direct(adjusted_utc)?,
+                    SyncMode::Off => {
+                        return Ok(SyncReport {
+                            server: host.name,
+                            request_type: host.request_type,
+                            remote_utc,
+                            applied_utc: adjusted_utc,
+                            local_before,
+                            deviation_ms,
+                            corrected: false,
+                            method: "disabled".to_string(),
+                        });
+                    }
+                    SyncMode::Immediate => set_system_time_direct(adjusted_utc)?,
+                    SyncMode::Slew => slew_system_time(adjusted_utc)?,
                 };
 
                 return Ok(SyncReport {
@@ -166,11 +171,11 @@ fn fetch_time(config: &AppConfig, client: &Client, host: &HostCandidate) -> Resu
     }
 }
 
-fn fetch_ntp_time(host: &str, timeout_ms: f64) -> Result<DateTime<Utc>> {
+fn fetch_ntp_time(host: &str, timeout_ms: u64) -> Result<DateTime<Utc>> {
     let address = format!("{host}:{NTP_PORT}");
     let socket =
         UdpSocket::bind("0.0.0.0:0").map_err(|e| AppError::msg(format!("bind UDP socket: {e}")))?;
-    let timeout = Duration::from_secs_f64((timeout_ms.max(1.0)) / 1000.0);
+    let timeout = Duration::from_millis(timeout_ms.max(1));
     socket
         .set_read_timeout(Some(timeout))
         .map_err(|e| AppError::msg(format!("set UDP read timeout: {e}")))?;
@@ -290,57 +295,73 @@ fn set_system_time_direct(time: DateTime<Utc>) -> Result<String> {
     Ok("direct".to_string())
 }
 
-fn adjust_clock_precise(target: DateTime<Utc>) -> Result<String> {
+fn slew_system_time(target: DateTime<Utc>) -> Result<String> {
     ensure_system_time_privilege()?;
     unsafe {
-        let mut increment = 0_u64;
-        let mut adjustment = 0_u64;
-        let mut disabled = windows::core::BOOL(0);
-        GetSystemTimeAdjustmentPrecise(&mut adjustment, &mut increment, &mut disabled)?;
+        let mut p_adj = 0u64;
+        let mut p_inc = 0u64;
+        let mut p_dis = windows::core::BOOL(0);
 
-        let mut current = Utc::now();
-        while current < target {
-            let remaining_ms = (target - current).num_milliseconds().max(1) as f64;
-            let step = if remaining_ms < 3_000.0 {
-                (increment as f64 / 1.5).max(1.0)
-            } else {
-                (increment as f64 / ((remaining_ms / 1_000.0) * 0.95)).max(1.0)
-            };
+        // Try Precise API first (Windows 10 2004+)
+        if GetSystemTimeAdjustmentPrecise(&mut p_adj, &mut p_inc, &mut p_dis).is_ok() {
+            let now = Utc::now();
+            let diff_ms = (target - now).num_milliseconds();
+            if diff_ms.abs() < 2 {
+                return Ok("slew-skipped-small".to_string());
+            }
 
-            SetSystemTimeAdjustmentPrecise(step.round() as u64, false)?;
-            std::thread::sleep(Duration::from_millis(800));
+            let slew_rate = 0.1;
+            let increment = p_inc as f64;
+            let adj_delta = increment * slew_rate;
+            let new_adj = if diff_ms > 0 { increment + adj_delta } else { increment - adj_delta };
+
+            let distance_100ns = diff_ms.abs() as f64 * 10000.0;
+            let interrupts_needed = distance_100ns / adj_delta;
+            let seconds_to_wait = (interrupts_needed * increment) / 10_000_000.0;
+
+            SetSystemTimeAdjustmentPrecise(new_adj.round() as u64, false)?;
+            wait_for_slew(seconds_to_wait);
             SetSystemTimeAdjustmentPrecise(0, true)?;
-            current = Utc::now();
+
+            return Ok("slew-precise".to_string());
         }
+
+        // Fallback to Legacy API
+        let mut l_adj = 0u32;
+        let mut l_inc = 0u32;
+        let mut l_dis = windows::core::BOOL(0);
+        GetSystemTimeAdjustment(&mut l_adj, &mut l_inc, &mut l_dis)?;
+
+        let now = Utc::now();
+        let diff_ms = (target - now).num_milliseconds();
+        if diff_ms.abs() < 2 {
+            return Ok("slew-skipped-small".to_string());
+        }
+
+        let slew_rate = 0.1;
+        let increment = l_inc as f64;
+        let adj_delta = increment * slew_rate;
+        let new_adj = if diff_ms > 0 { increment + adj_delta } else { increment - adj_delta };
+
+        let distance_100ns = diff_ms.abs() as f64 * 10000.0;
+        let interrupts_needed = distance_100ns / adj_delta;
+        let seconds_to_wait = (interrupts_needed * increment) / 10_000_000.0;
+
+        SetSystemTimeAdjustment(new_adj.round() as u32, false)?;
+        wait_for_slew(seconds_to_wait);
+        SetSystemTimeAdjustment(0, true)?;
+
+        Ok("slew-legacy".to_string())
     }
-    Ok("precise".to_string())
 }
 
-fn adjust_clock_legacy(target: DateTime<Utc>) -> Result<String> {
-    ensure_system_time_privilege()?;
-    unsafe {
-        let mut increment = 0_u32;
-        let mut adjustment = 0_u32;
-        let mut disabled = windows::core::BOOL(0);
-        GetSystemTimeAdjustment(&mut adjustment, &mut increment, &mut disabled)?;
-
-        let mut current = Utc::now();
-        while current < target {
-            let remaining_ms = (target - current).num_milliseconds().max(1) as f64;
-            let step = if remaining_ms < 3_000.0 {
-                (increment as f64 * 1.5).round()
-            } else {
-                ((increment as f64) * (remaining_ms / 1_000.0 * 0.95)).round()
-            }
-            .clamp(1.0, u32::MAX as f64) as u32;
-
-            SetSystemTimeAdjustment(step, false)?;
-            std::thread::sleep(Duration::from_millis(800));
-            SetSystemTimeAdjustment(0, true)?;
-            current = Utc::now();
-        }
+fn wait_for_slew(seconds: f64) {
+    let mut remaining = Duration::from_secs_f64(seconds);
+    while remaining > Duration::from_millis(1) {
+        let chunk = remaining.min(Duration::from_millis(500));
+        std::thread::sleep(chunk);
+        remaining = remaining.saturating_sub(chunk);
     }
-    Ok("legacy".to_string())
 }
 
 fn utc_to_system_time(time: DateTime<Utc>) -> SYSTEMTIME {
@@ -380,9 +401,9 @@ pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
 
 fn request_allowed(config: &AppConfig, request_type: RequestType) -> bool {
     match config.agreement {
-        0 => request_type == RequestType::Ntp,
-        1 => request_type == RequestType::Http || request_type == RequestType::Https,
-        _ => true,
+        Agreement::NtpOnly => request_type == RequestType::Ntp,
+        Agreement::HttpOnly => request_type == RequestType::Http || request_type == RequestType::Https,
+        Agreement::Mixed => true,
     }
 }
 
@@ -395,11 +416,7 @@ fn collect_candidates(config: &AppConfig) -> Vec<HostCandidate> {
 
         hosts.push(HostCandidate {
             name: name.clone(),
-            request_type: match host.request_type {
-                1 => RequestType::Http,
-                2 => RequestType::Https,
-                _ => RequestType::Ntp,
-            },
+            request_type: host.request_type,
             priority: host.priority,
         });
     }

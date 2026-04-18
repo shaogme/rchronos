@@ -247,6 +247,14 @@ fn run_windows_service() -> Result<()> {
     let config_path = config_path();
     let config = load_config_or_default(&config_path);
 
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| AppError::msg(format!("build tokio runtime: {e}")))?;
+
+    // Enter the runtime context so that tokio::spawn calls in AppRuntime::new work
+    let _runtime_guard = runtime.enter();
+
     info!(
         "Starting {} service, logs in {}",
         config.service_name,
@@ -272,11 +280,6 @@ fn run_windows_service() -> Result<()> {
         1,
         Duration::from_secs(5),
     ))?;
-
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| AppError::msg(format!("build tokio runtime: {e}")))?;
 
     let result = runtime.block_on(async move { run_application(app, Some(status_handle)).await });
 
@@ -323,7 +326,7 @@ enum AppMessage {
     UpdateConfigFromToml(String, oneshot::Sender<Result<()>>),
     RequestSync(SyncTrigger),
     SyncFinished(Result<SyncReport>, SyncTrigger),
-    GetConfigDelay(oneshot::Sender<f64>),
+    GetConfigDelay(oneshot::Sender<u64>),
 }
 
 #[derive(Debug)]
@@ -495,7 +498,7 @@ impl AppActor {
                     }
                 }
                 AppMessage::GetConfigDelay(tx) => {
-                    let _ = tx.send(self.state.config.delay_seconds);
+                    let _ = tx.send(self.state.config.delay_ms);
                 }
             }
         }
@@ -624,10 +627,10 @@ impl AppRuntime {
             loop {
                 let (tx, rx) = oneshot::channel();
                 let _ = self.sender.send(AppMessage::GetConfigDelay(tx)).await;
-                let delay_seconds = rx.await.unwrap_or(60.0).max(1.0);
+                let delay_ms = rx.await.unwrap_or(60_000).max(1);
 
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs_f64(delay_seconds)) => {},
+                    _ = tokio::time::sleep(Duration::from_millis(delay_ms)) => {},
                     _ = self.shutdown.notified() => break,
                 }
 

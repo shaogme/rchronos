@@ -423,8 +423,8 @@ fn SummaryPanel() -> impl View {
             ),
             metric_card(
                 "Delay",
-                format!("{:.0}s", snapshot.config.delay_seconds),
-                format!("Timeout: {:.0}ms", snapshot.config.network_timeout_ms),
+                format!("{}ms", snapshot.config.delay_ms),
+                format!("Timeout: {}ms", snapshot.config.network_timeout_ms),
             ),
         ]
         .class("grid metrics")
@@ -472,18 +472,18 @@ fn ServicePanel() -> impl View {
                         kv_row(
                             "Offsets",
                             format!(
-                                "{:.2}s / {:.2}s",
-                                snapshot.config.offset_seconds,
-                                snapshot.config.deviation_offset_seconds
+                                "{}ms / {}ms",
+                                snapshot.config.offset_ms,
+                                snapshot.config.deviation_offset_ms
                             ),
                         ),
                         kv_row(
                             "Sync interval",
-                            format!("{:.0}s", snapshot.config.delay_seconds)
+                            format!("{}ms", snapshot.config.delay_ms)
                         ),
                         kv_row(
                             "Network timeout",
-                            format!("{:.0}ms", snapshot.config.network_timeout_ms)
+                            format!("{}ms", snapshot.config.network_timeout_ms)
                         ),
                     ]
                     .class("kv-list snapshot-summary"),
@@ -604,29 +604,13 @@ fn SyncTuningPanel() -> impl View {
                     "Agreement mode",
                     agreement_label(snapshot.config.agreement).to_string()
                 ),
-                kv_row("Window", format!("{:.0}ms", snapshot.config.timeout_ms)),
-                kv_row(
-                    "Precision support",
-                    if snapshot.config.high_precision_supported {
-                        "yes".to_string()
-                    } else {
-                        "no".to_string()
-                    },
-                ),
+                kv_row("Window", format!("{}ms", snapshot.config.timeout_ms)),
                 kv_row(
                     "Win32 time policy",
                     if snapshot.config.disable_win32_time {
                         "disabled".to_string()
                     } else {
                         "enabled".to_string()
-                    },
-                ),
-                kv_row(
-                    "Verbose logging",
-                    if snapshot.config.verbose {
-                        "on".to_string()
-                    } else {
-                        "off".to_string()
                     },
                 ),
             ]
@@ -841,28 +825,26 @@ pub fn enabled_hosts(config: &AppConfig) -> usize {
     config.hosts.values().filter(|host| host.enabled).count()
 }
 
-pub fn request_type_label(request_type: u8) -> &'static str {
+pub fn request_type_label(request_type: RequestType) -> &'static str {
     match request_type {
-        1 => "HTTP",
-        2 => "HTTPS",
-        _ => "NTP",
+        RequestType::Http => "HTTP",
+        RequestType::Https => "HTTPS",
+        RequestType::Ntp => "NTP",
     }
 }
 
-pub fn sync_mode_label(sync_mode: u8) -> &'static str {
+pub fn sync_mode_label(sync_mode: SyncMode) -> &'static str {
     match sync_mode {
-        0 => "Automatic",
-        1 => "Force",
-        2 => "Precise",
-        3 => "Legacy",
-        _ => "Custom",
+        SyncMode::Off => "Off",
+        SyncMode::Immediate => "Immediate (Step)",
+        SyncMode::Slew => "Gradual (Slew)",
     }
 }
 
-pub fn agreement_label(agreement: u8) -> &'static str {
+pub fn agreement_label(agreement: Agreement) -> &'static str {
     match agreement {
-        0 => "NTP only",
-        1 => "HTTP only",
-        _ => "Mixed",
+        Agreement::NtpOnly => "NTP only",
+        Agreement::HttpOnly => "HTTP only",
+        Agreement::Mixed => "Mixed",
     }
 }
