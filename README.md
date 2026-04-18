@@ -60,14 +60,58 @@ sc.exe start Rchronos
 The service looks for a `.toml` file with the same name as the executable (e.g., `rchronos.toml`) in its directory.
 
 ```toml
-sync_mode = 0             # 0: Direct, 2: Precise, 3: Legacy
-delay_seconds = 3600.0    # Sync interval
-network_timeout_ms = 5000.0
+sync_mode = "slew"
+offset_ms = 0
+deviation_offset_ms = 0
+disable_win32_time = false
+delay_ms = 3600000
+timeout_ms = 30000
+network_timeout_ms = 5000
+agreement = "mixed"
+user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+web_port = 8081
+max_log_lines = 200
+service_name = "Rchronos"
 
-[hosts]
-"ntp.tencent.com" = { request_type = 0, priority = 0, enabled = true }
-"www.baidu.com"   = { request_type = 1, priority = 1, enabled = true }
-"www.google.com"  = { request_type = 2, priority = 1, enabled = true }
+[hosts."ntp.aliyun.com"]
+request_type = "ntp"
+priority = 0
+enabled = true
+
+[hosts."ntp.tencent.com"]
+request_type = "ntp"
+priority = 0
+enabled = true
+
+[hosts."rhel.pool.ntp.org"]
+request_type = "ntp"
+priority = 0
+enabled = true
+
+[hosts."time.asia.apple.com"]
+request_type = "ntp"
+priority = 0
+enabled = true
+
+[hosts."time.cloudflare.com"]
+request_type = "ntp"
+priority = 0
+enabled = true
+
+[hosts."www.163.com"]
+request_type = "http"
+priority = 1
+enabled = true
+
+[hosts."www.baidu.com"]
+request_type = "http"
+priority = 1
+enabled = true
+
+[hosts."www.qq.com"]
+request_type = "http"
+priority = 1
+enabled = true
 ```
 
 ## Web Control Center
