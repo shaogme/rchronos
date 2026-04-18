@@ -164,3 +164,30 @@ pub struct RuntimeSnapshot {
     pub syncing: bool,
     pub config_path: String,
 }
+
+pub fn format_ms_adaptive(ms: u64) -> String {
+    if ms == 0 {
+        return "0ms".to_string();
+    }
+
+    let mut remaining = ms;
+    let mut parts = Vec::new();
+
+    if remaining >= 3_600_000 {
+        parts.push(format!("{}h", remaining / 3_600_000));
+        remaining %= 3_600_000;
+    }
+    if remaining >= 60_000 {
+        parts.push(format!("{}m", remaining / 60_000));
+        remaining %= 60_000;
+    }
+    if remaining >= 1_000 {
+        parts.push(format!("{}s", remaining / 1_000));
+        remaining %= 1_000;
+    }
+    if remaining > 0 {
+        parts.push(format!("{}ms", remaining));
+    }
+
+    parts.join(" ")
+}

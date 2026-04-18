@@ -1,7 +1,11 @@
 use crate::service::*;
 use silex::prelude::*;
 
-fn kv_row(label: &'static str, value: String) -> AnyView {
+fn time_span(ms: u64) -> impl View {
+    span(format_ms_adaptive(ms)).attr("title", format!("{}ms", ms))
+}
+
+fn kv_row(label: &'static str, value: impl View + 'static) -> AnyView {
     div![span(label).class("kv-label"), span(value).class("kv-value"),]
         .class("kv-row")
         .into_any()
@@ -423,8 +427,8 @@ fn SummaryPanel() -> impl View {
             ),
             metric_card(
                 "Delay",
-                format!("{}ms", snapshot.config.delay_ms),
-                format!("Timeout: {}ms", snapshot.config.network_timeout_ms),
+                time_span(snapshot.config.delay_ms),
+                span!["Timeout: ", time_span(snapshot.config.network_timeout_ms)],
             ),
         ]
         .class("grid metrics")
@@ -471,19 +475,16 @@ fn ServicePanel() -> impl View {
                         ),
                         kv_row(
                             "Offsets",
-                            format!(
-                                "{}ms / {}ms",
-                                snapshot.config.offset_ms,
-                                snapshot.config.deviation_offset_ms
-                            ),
+                            span![
+                                time_span(snapshot.config.offset_ms),
+                                " / ",
+                                time_span(snapshot.config.deviation_offset_ms)
+                            ],
                         ),
-                        kv_row(
-                            "Sync interval",
-                            format!("{}ms", snapshot.config.delay_ms)
-                        ),
+                        kv_row("Sync interval", time_span(snapshot.config.delay_ms)),
                         kv_row(
                             "Network timeout",
-                            format!("{}ms", snapshot.config.network_timeout_ms)
+                            time_span(snapshot.config.network_timeout_ms)
                         ),
                     ]
                     .class("kv-list snapshot-summary"),
@@ -604,7 +605,7 @@ fn SyncTuningPanel() -> impl View {
                     "Agreement mode",
                     agreement_label(snapshot.config.agreement).to_string()
                 ),
-                kv_row("Window", format!("{}ms", snapshot.config.timeout_ms)),
+                kv_row("Window", time_span(snapshot.config.timeout_ms)),
                 kv_row(
                     "Win32 time policy",
                     if snapshot.config.disable_win32_time {
@@ -801,7 +802,11 @@ pub fn action_status(
     view.into_any()
 }
 
-pub fn metric_card(label: &'static str, value: String, subtitle: String) -> AnyView {
+pub fn metric_card(
+    label: &'static str,
+    value: impl View + 'static,
+    subtitle: impl View + 'static,
+) -> AnyView {
     div![
         div(label).class("metric-label"),
         div(value).class("metric-value"),
