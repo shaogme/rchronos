@@ -1,5 +1,6 @@
 use crate::service::*;
 use crate::views::*;
+use silex::css::theme::ThemeToCss;
 use silex::prelude::*;
 use std::time::Duration;
 
@@ -11,35 +12,10 @@ pub fn AppShell() -> impl View {
         r#"
         :root {
             color-scheme: dark;
-            --bg: #06101d;
-            --bg-elevated: rgba(9, 17, 30, 0.92);
-            --bg-panel: rgba(14, 24, 40, 0.92);
-            --text: #e5eef8;
-            --muted: #8ea2bb;
-            --line: rgba(157, 179, 208, 0.16);
-            --accent: #7dd3fc;
-            --accent-2: #a78bfa;
-            --success: #4ade80;
-            --warning: #fbbf24;
-            --danger: #fb7185;
-            --shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
-            --radius: 20px;
-            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: color-scheme 0.3s;
         }
         :root[data-theme="light"] {
             color-scheme: light;
-            --bg: #f4f7fb;
-            --bg-elevated: rgba(255, 255, 255, 0.9);
-            --bg-panel: rgba(255, 255, 255, 0.96);
-            --text: #112033;
-            --muted: #54657d;
-            --line: rgba(17, 32, 51, 0.12);
-            --accent: #2563eb;
-            --accent-2: #7c3aed;
-            --success: #16a34a;
-            --warning: #b45309;
-            --danger: #dc2626;
-            --shadow: 0 18px 40px rgba(17, 32, 51, 0.12);
         }
         @keyframes pulse-status {
             0% { opacity: 1; transform: scale(1); }
@@ -418,6 +394,19 @@ pub fn AppShell() -> impl View {
     "#,
     );
 
+    let theme_name = Persistent::builder("rchronos-web-theme")
+        .local()
+        .string()
+        .default("dark".to_string())
+        .build();
+    let (theme, theme_setter) = Signal::pair(get_theme(&theme_name.get_untracked()));
+    Effect::new({
+        let theme_name = theme_name.clone();
+        move |_| {
+            theme_setter.set(get_theme(&theme_name.get()));
+        }
+    });
+
     let ctx = DashboardContext {
         snapshot: HttpClient::get("/api/state")
             .json::<RuntimeSnapshot>()
@@ -456,11 +445,8 @@ pub fn AppShell() -> impl View {
             .parse::<bool>()
             .default(true)
             .build(),
-        theme: Persistent::builder("rchronos-web-theme")
-            .local()
-            .string()
-            .default("dark".to_string())
-            .build(),
+        theme_name,
+        theme,
     };
 
     provide_context(ctx);
@@ -468,7 +454,15 @@ pub fn AppShell() -> impl View {
     let refresh_timer = StoredValue::new(None::<IntervalHandle>);
 
     Effect::new(move |_| {
-        apply_theme(&ctx.theme.get());
+        let name = ctx.theme_name.get();
+        let theme = ctx.theme.get();
+        if let Some(window) = silex::reexports::web_sys::window()
+            && let Some(document) = window.document()
+            && let Some(root) = document.document_element()
+        {
+            let _ = root.set_attribute("data-theme", &name);
+            let _ = root.set_attribute("style", &theme.to_css_variables());
+        }
     });
 
     Effect::new({
@@ -547,7 +541,7 @@ pub fn AppShell() -> impl View {
                         .class("hero-subtitle"),
                 ],
                 div![
-                    span(ctx.theme.map_fn(|theme| if theme == "dark" { "Dark theme" } else { "Light theme" }))
+                    span(ctx.theme_name.map_fn(|theme| if theme == "dark" { "Dark theme" } else { "Light theme" }))
                         .class("pill"),
                     span(ctx.auto_refresh.map_fn(|enabled| if *enabled { "Auto refresh on" } else { "Auto refresh off" }))
                         .class("pill"),

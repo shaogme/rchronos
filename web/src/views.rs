@@ -194,13 +194,13 @@ pub fn Sidebar() -> impl View {
         ]
         .class("nav"),
         div![
-            button(ctx.theme.map_fn(|theme| if theme == "dark" {
+            button(ctx.theme_name.map_fn(|theme| if theme == "dark" {
                 "Switch to Light"
             } else {
                 "Switch to Dark"
             }))
             .on(event::click, move |_| {
-                ctx.theme.update(|theme| {
+                ctx.theme_name.update(|theme| {
                     *theme = if theme == "dark" {
                         "light".to_string()
                     } else {
