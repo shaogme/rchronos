@@ -3,8 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#06101d" />
+    <meta id="meta-theme-color" name="theme-color" content="#020617" />
     <title>rchronos control center</title>
+    <style>
+      html { background-color: #020617; }
+      html[data-theme="light"] { background-color: #f0f4f8; }
+      body { margin: 0; }
+    </style>
+    <script>
+      (function() {
+        try {
+          var val = localStorage.getItem('rchronos-web-theme');
+          if (val) {
+            var theme = val.replace(/"/g, '');
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme === 'light') {
+              document.getElementById('meta-theme-color').setAttribute('content', '#f0f4f8');
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link data-trunk rel="rust" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int" />
   </head>
   <body>
