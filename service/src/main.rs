@@ -15,7 +15,10 @@ use std::{
 
 use chrono::Local;
 use thiserror::Error;
-use tokio::{net::TcpListener, sync::{mpsc, oneshot}};
+use tokio::{
+    net::TcpListener,
+    sync::{mpsc, oneshot},
+};
 use tracing::{error, info, warn};
 use windows::Win32::System::EventLog::{
     DeregisterEventSource, EVENTLOG_ERROR_TYPE, REPORT_EVENT_TYPE, RegisterEventSourceW,
@@ -30,7 +33,7 @@ mod sync;
 mod web;
 
 use config::{AppConfig, AppConfigExt, ConfigError, config_path};
-use sync::{SyncTrigger, perform_sync, request_mode_name, SyncReport};
+use sync::{SyncReport, SyncTrigger, perform_sync, request_mode_name};
 
 use windows_service::{
     define_windows_service,
@@ -404,7 +407,11 @@ impl AppActor {
                     let _ = tx.send(res);
                 }
                 AppMessage::SaveConfig(tx) => {
-                    let res = self.state.config.save(&self.config_path).map_err(Into::into);
+                    let res = self
+                        .state
+                        .config
+                        .save(&self.config_path)
+                        .map_err(Into::into);
                     let _ = tx.send(res);
                 }
                 AppMessage::UpdateConfigFromToml(content, tx) => {
@@ -412,7 +419,8 @@ impl AppActor {
                         let config: AppConfig = toml::from_str(&content)
                             .map_err(|e| AppError::msg(format!("parse config form: {e}")))?;
                         self.state.config = config;
-                        self.state.config
+                        self.state
+                            .config
                             .save(&self.config_path)
                             .map_err(AppError::from)?;
                         Ok(())
@@ -445,7 +453,9 @@ impl AppActor {
                                 Err(e) => Err(e),
                             };
 
-                            let _ = tx.send(AppMessage::SyncFinished(flat_result, trigger)).await;
+                            let _ = tx
+                                .send(AppMessage::SyncFinished(flat_result, trigger))
+                                .await;
                         });
                     }
                     if self.state.logs.len() > self.state.config.max_log_lines {
@@ -459,7 +469,11 @@ impl AppActor {
                         Ok(report) => {
                             self.state.last_result = format!(
                                 "{} via {} ({}) on {} at {}",
-                                if report.corrected { "Synced" } else { "Checked" },
+                                if report.corrected {
+                                    "Synced"
+                                } else {
+                                    "Checked"
+                                },
                                 report.method,
                                 request_mode_name(report.request_type),
                                 report.server,
@@ -557,10 +571,7 @@ impl AppRuntime {
     }
 
     pub async fn set_status(&self, status: impl Into<String>) {
-        let _ = self
-            .sender
-            .send(AppMessage::SetStatus(status.into()))
-            .await;
+        let _ = self.sender.send(AppMessage::SetStatus(status.into())).await;
     }
 
     pub async fn set_last_result(&self, last_result: impl Into<String>) {
@@ -576,8 +587,11 @@ impl AppRuntime {
         match rx.await {
             Ok(res) => {
                 if res.is_ok() {
-                    self.log(format!("Reloaded config from {}", self.config_path.display()))
-                        .await;
+                    self.log(format!(
+                        "Reloaded config from {}",
+                        self.config_path.display()
+                    ))
+                    .await;
                     self.set_status("Config reloaded").await;
                 }
                 res

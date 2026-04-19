@@ -90,8 +90,8 @@ pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport
         match fetch_time(config, &client, &host) {
             Ok(remote_utc) => {
                 let local_before = Local::now();
-                let adjusted_utc = remote_utc
-                    + chrono::Duration::milliseconds(config.offset_ms as i64);
+                let adjusted_utc =
+                    remote_utc + chrono::Duration::milliseconds(config.offset_ms as i64);
                 let now_utc = Utc::now();
                 let deviation_ms = (adjusted_utc - now_utc).num_milliseconds().unsigned_abs();
 
@@ -313,7 +313,11 @@ fn slew_system_time(target: DateTime<Utc>) -> Result<String> {
             let slew_rate = 0.1;
             let increment = p_inc as f64;
             let adj_delta = increment * slew_rate;
-            let new_adj = if diff_ms > 0 { increment + adj_delta } else { increment - adj_delta };
+            let new_adj = if diff_ms > 0 {
+                increment + adj_delta
+            } else {
+                increment - adj_delta
+            };
 
             let distance_100ns = diff_ms.abs() as f64 * 10000.0;
             let interrupts_needed = distance_100ns / adj_delta;
@@ -341,7 +345,11 @@ fn slew_system_time(target: DateTime<Utc>) -> Result<String> {
         let slew_rate = 0.1;
         let increment = l_inc as f64;
         let adj_delta = increment * slew_rate;
-        let new_adj = if diff_ms > 0 { increment + adj_delta } else { increment - adj_delta };
+        let new_adj = if diff_ms > 0 {
+            increment + adj_delta
+        } else {
+            increment - adj_delta
+        };
 
         let distance_100ns = diff_ms.abs() as f64 * 10000.0;
         let interrupts_needed = distance_100ns / adj_delta;
@@ -402,7 +410,9 @@ pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
 fn request_allowed(config: &AppConfig, request_type: RequestType) -> bool {
     match config.agreement {
         Agreement::NtpOnly => request_type == RequestType::Ntp,
-        Agreement::HttpOnly => request_type == RequestType::Http || request_type == RequestType::Https,
+        Agreement::HttpOnly => {
+            request_type == RequestType::Http || request_type == RequestType::Https
+        }
         Agreement::Mixed => true,
     }
 }

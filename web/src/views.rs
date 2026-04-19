@@ -1,17 +1,126 @@
 use crate::service::*;
 use silex::prelude::*;
 
+// --- Styled Components ---
+
+styled! {
+    pub StyledMetricCard<div>(children: Children) {
+        padding: 24px;
+        background: $AppTheme::BG_PANEL;
+        border: 1px solid $AppTheme::LINE;
+        border-radius: $AppTheme::RADIUS;
+        box-shadow: $AppTheme::SHADOW;
+        backdrop-filter: blur(16px);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+
+        &::after {
+            content: "";
+            position: absolute;
+            bottom: 0; right: 0; width: 60px; height: 60px;
+            background: radial-gradient(circle at center, $AppTheme::ACCENT, transparent 70%);
+            opacity: 0.05;
+        }
+
+        &:hover {
+            transform: translateY(-4px);
+            border-color: $AppTheme::ACCENT;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+        }
+    }
+}
+
+styled! {
+    pub StyledKVRow<div>(children: Children) {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid $AppTheme::LINE;
+        background: rgba(255, 255, 255, 0.03);
+        transition: border-color 0.2s;
+
+        &:hover {
+            border-color: $AppTheme::ACCENT_2;
+        }
+    }
+}
+
+styled! {
+    pub StyledBadge<span>(children: Children) {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: rgba(125, 211, 252, 0.1);
+        color: $AppTheme::ACCENT;
+        font-size: 11px;
+        font-weight: 750;
+        text-transform: uppercase;
+        letter-spacing: 0.05 em;
+    }
+}
+
+styled! {
+    pub StyledToolButton<button>(
+        children: Children,
+        #[prop(into)] danger: Signal<bool>,
+    ) {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        appearance: none;
+        border: 1px solid $AppTheme::LINE;
+        background: rgba(255, 255, 255, 0.05);
+        color: $AppTheme::TEXT;
+        border-radius: 14px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 650;
+        cursor: pointer;
+        transition: all 0.2s;
+
+        &:hover:not(:disabled) {
+            transform: translateY(-2px);
+            border-color: $(rx!(if danger.get() { AppTheme::DANGER } else { AppTheme::ACCENT }));
+            background: $(rx!(if danger.get() { rgba(251, 113, 133, 0.1) } else { rgba(125, 211, 252, 0.12) }));
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        &:active:not(:disabled) { transform: translateY(0); }
+        &:disabled { opacity: 0.5; cursor: not-allowed; }
+    }
+}
+
+// --- Views ---
+
 fn time_span(ms: u64) -> impl View {
     span(format_ms_adaptive(ms)).attr("title", format!("{}ms", ms))
 }
 
 fn kv_row(label: &'static str, value: impl View + 'static) -> AnyView {
-    div![span(label).class("kv-label"), span(value).class("kv-value"),]
-        .class("kv-row")
-        .into_any()
+    StyledKVRow(view_chain![
+        span(label).style(
+            sty()
+                .color(AppTheme::MUTED)
+                .text_transform(TextTransformKeyword::Uppercase)
+                .letter_spacing(px(1))
+                .font_size(px(11))
+                .font_weight(800)
+        ),
+        span(value).style(
+            sty()
+                .color(AppTheme::TEXT)
+                .text_align(TextAlignKeyword::Right)
+        )
+    ])
+    .into_any()
 }
 
-fn icon_overview() -> impl View {
+fn icon_overview() -> SharedView {
     svg(view_chain![
         rect()
             .attr("width", "7")
@@ -46,24 +155,20 @@ fn icon_overview() -> impl View {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_config() -> impl View {
+fn icon_config() -> SharedView {
     svg(view_chain![
         path().attr("d", "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"),
         circle().attr("cx", "12").attr("cy", "12").attr("r", "3")
     ])
-    .attr("width", "16")
-    .attr("height", "16")
-    .attr("viewBox", "0 0 24 24")
-    .attr("fill", "none")
-    .attr("stroke", "currentColor")
-    .attr("stroke-width", "2.5")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-linejoin", "round")
+    .attr("width", "16").attr("height", "16").attr("viewBox", "0 0 24 24").attr("fill", "none")
+    .attr("stroke", "currentColor").attr("stroke-width", "2.5").attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_logs() -> impl View {
+fn icon_logs() -> SharedView {
     svg(view_chain![
         path().attr(
             "d",
@@ -81,9 +186,10 @@ fn icon_logs() -> impl View {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_about() -> impl View {
+fn icon_about() -> SharedView {
     svg(view_chain![
         circle().attr("cx", "12").attr("cy", "12").attr("r", "10"),
         path().attr("d", "M12 16v-4"),
@@ -97,9 +203,10 @@ fn icon_about() -> impl View {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_sync() -> impl View {
+fn icon_sync() -> SharedView {
     svg(view_chain![
         path().attr("d", "M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"),
         path().attr("d", "M3 3v5h5"),
@@ -114,25 +221,21 @@ fn icon_sync() -> impl View {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_save() -> impl View {
+fn icon_save() -> SharedView {
     svg(view_chain![
         path().attr("d", "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"),
         path().attr("d", "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"),
         path().attr("d", "M7 3v4a1 1 0 0 0 1 1h7")
     ])
-    .attr("width", "15")
-    .attr("height", "15")
-    .attr("viewBox", "0 0 24 24")
-    .attr("fill", "none")
-    .attr("stroke", "currentColor")
-    .attr("stroke-width", "2.5")
-    .attr("stroke-linecap", "round")
-    .attr("stroke-linejoin", "round")
+    .attr("width", "15").attr("height", "15").attr("viewBox", "0 0 24 24").attr("fill", "none")
+    .attr("stroke", "currentColor").attr("stroke-width", "2.5").attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_stop() -> impl View {
+fn icon_stop() -> SharedView {
     svg(view_chain![
         circle().attr("cx", "12").attr("cy", "12").attr("r", "10"),
         rect()
@@ -150,9 +253,10 @@ fn icon_stop() -> impl View {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
-fn icon_reload() -> impl View {
+fn icon_reload() -> SharedView {
     svg(view_chain![
         path().attr("d", "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"),
         path().attr("d", "M3 3v5h5")
@@ -165,6 +269,7 @@ fn icon_reload() -> impl View {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
+    .into_shared()
 }
 
 #[derive(Route, Clone, PartialEq)]
@@ -194,7 +299,7 @@ pub fn Sidebar() -> impl View {
         ]
         .class("nav"),
         div![
-            button(ctx.theme_name.map_fn(|theme| if theme == "dark" {
+            StyledToolButton(ctx.theme_name.map_fn(|theme| if theme == "dark" {
                 "Switch to Light"
             } else {
                 "Switch to Dark"
@@ -208,23 +313,29 @@ pub fn Sidebar() -> impl View {
                     };
                 });
             })
-            .class("tool"),
-            button(ctx.auto_refresh.map_fn(|enabled| {
-                if *enabled {
-                    "Pause Refresh"
-                } else {
-                    "Resume Refresh"
-                }
+            .danger(false),
+            StyledToolButton(ctx.auto_refresh.map_fn(|enabled| if *enabled {
+                "Pause Refresh"
+            } else {
+                "Resume Refresh"
             }))
             .on(event::click, move |_| {
                 ctx.auto_refresh.update(|enabled| *enabled = !*enabled);
             })
-            .class("tool"),
-            button("Refresh now")
+            .danger(false),
+            StyledToolButton("Refresh now")
                 .on(event::click, move |_| ctx.snapshot.refetch())
-                .class("tool"),
+                .danger(false),
         ]
-        .class("nav-side-actions"),
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .flex_direction(FlexDirectionKeyword::Column)
+                .gap(px(12))
+                .margin_top(px(20))
+                .padding_top(px(20))
+                .border_top(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+        ),
     ]
     .class("sidebar")
 }
@@ -236,31 +347,31 @@ pub fn OverviewPage() -> impl View {
     div![
         div![
             div![
-                h2("Overview"),
+                h2("Overview").style(sty().margin(px(0)).font_size(px(32)).font_weight(800).letter_spacing(px(-1))),
                 p("Live service status, control shortcuts, and a quick glance at the current runtime state.")
-                    .class("page-intro"),
+                    .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(16))),
             ],
             div![
-                button(span![icon_sync(), "Sync now"])
+                StyledToolButton(view_chain![icon_sync(), "Sync now"])
                     .on(event::click, move |_| ctx.sync.mutate(()))
                     .attr("disabled", rx!(@fn ctx.sync.loading()))
-                    .class("tool"),
-                button(span![icon_reload(), "Reload config"])
+                    .danger(false),
+                StyledToolButton(view_chain![icon_reload(), "Reload config"])
                     .on(event::click, move |_| ctx.reload.mutate(()))
                     .attr("disabled", rx!(@fn ctx.reload.loading()))
-                    .class("tool"),
-                button(span![icon_save(), "Save config"])
+                    .danger(false),
+                StyledToolButton(view_chain![icon_save(), "Save config"])
                     .on(event::click, move |_| ctx.save.mutate(()))
                     .attr("disabled", rx!(@fn ctx.save.loading()))
-                    .class("tool"),
-                button(span![icon_stop(), "Stop service"])
+                    .danger(false),
+                StyledToolButton(view_chain![icon_stop(), "Stop service"])
                     .on(event::click, move |_| ctx.stop.mutate(()))
                     .attr("disabled", rx!(@fn ctx.stop.loading()))
-                    .class("tool tool-danger"),
+                    .danger(true),
             ]
-            .class("toolbar"),
+            .style(sty().display(DisplayKeyword::Flex).flex_wrap(FlexWrapKeyword::Wrap).gap(px(12))),
         ]
-        .class("section-header"),
+        .style(sty().display(DisplayKeyword::Flex).justify_content(JustifyContentKeyword::SpaceBetween).align_items(AlignItemsKeyword::FlexStart).gap(px(12)).flex_wrap(FlexWrapKeyword::Wrap).margin_bottom(px(8))),
         SummaryPanel(),
         div![
             div![ServicePanel(), MutationLedger()].class("stack"),
@@ -277,22 +388,22 @@ pub fn ConfigPage() -> impl View {
 
     div![
         div![
-            h2("Config"),
+            h2("Config").style(sty().margin(px(0)).font_size(px(32)).font_weight(800).letter_spacing(px(-1))),
             p("Edit the live TOML config, keep a local draft, and push it back to the service without leaving the dashboard.")
-                .class("page-intro"),
-        ],
+                .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(16))),
+        ].style(sty().margin_bottom(px(24))),
         div![
             div![
                 div![
-                    h3("TOML Draft"),
-                    span("Stored locally").class("badge"),
+                    h3("TOML Draft").style(sty().margin(px(0))),
+                    StyledBadge("Stored locally"),
                 ]
-                .class("section-title"),
+                .style(sty().display(DisplayKeyword::Flex).justify_content(JustifyContentKeyword::SpaceBetween).align_items(AlignItemsKeyword::FlexStart).gap(px(12)).flex_wrap(FlexWrapKeyword::Wrap)),
                 textarea("")
                     .bind_value(ctx.config_draft)
                     .class("editor"),
                 div![
-                    button(span![icon_reload(), "Load live config"])
+                    StyledToolButton(view_chain![icon_reload(), "Load live config"])
                         .on(event::click, move |_| {
                             if let Some(snapshot) = ctx.snapshot.get_data()
                                 && let Ok(toml) = toml::to_string_pretty(&snapshot.config)
@@ -300,27 +411,33 @@ pub fn ConfigPage() -> impl View {
                                 ctx.config_draft.set(toml);
                             }
                         })
-                        .class("tool"),
-                    button(span![icon_save(), "Apply draft"])
+                        .danger(false),
+                    StyledToolButton(view_chain![icon_save(), "Apply draft"])
                         .on(event::click, move |_| ctx.apply_config.mutate(ctx.config_draft.get()))
                         .attr("disabled", rx!(@fn ctx.apply_config.loading()))
-                        .class("tool"),
+                        .danger(false),
                 ]
-                .class("toolbar"),
+                .style(sty().display(DisplayKeyword::Flex).flex_wrap(FlexWrapKeyword::Wrap).gap(px(12))),
                 move || {
                     if let Some(err) = ctx.apply_config.error() {
-                        div(format!("Draft error: {:?}", err)).class("banner status-bad").into_any()
+                        div(format!("Draft error: {:?}", err))
+                            .style(sty().padding(px(16)).border_radius(px(14)).background(rgba(251, 113, 133, 0.03)).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).font_size(px(14)).line_height(1.6).color(AppTheme::DANGER))
+                            .into_any()
                     } else if ctx.apply_config.loading() {
-                        div("Applying draft to the service...").class("banner status-warn").into_any()
+                        div("Applying draft to the service...")
+                            .style(sty().padding(px(16)).border_radius(px(14)).background(rgba(251, 191, 36, 0.03)).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).font_size(px(14)).line_height(1.6).color(AppTheme::WARNING))
+                            .into_any()
                     } else if let Some(msg) = ctx.apply_config.value() {
-                        div(format!("Last draft update: {msg}")).class("banner status-ok").into_any()
+                        div(format!("Last draft update: {msg}"))
+                            .style(sty().padding(px(16)).border_radius(px(14)).background(rgba(74, 222, 128, 0.03)).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).font_size(px(14)).line_height(1.6).color(AppTheme::SUCCESS))
+                            .into_any()
                     } else {
                         "".into_any()
                     }
                 }
             ]
             .class("stack")
-            .class("card"),
+            .style(sty().background(AppTheme::BG_PANEL).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).border_radius(AppTheme::RADIUS).box_shadow(AppTheme::SHADOW).padding(px(24))),
 
             div![
                 SnapshotQuickFacts(),
@@ -338,10 +455,10 @@ pub fn ConfigPage() -> impl View {
 pub fn LogsPage() -> impl View {
     div![
         div![
-            h2("Logs"),
+            h2("Logs").style(sty().margin(px(0)).font_size(px(32)).font_weight(800).letter_spacing(px(-1))),
             p("The last lines from the service runtime, plus the current host matrix for easy inspection.")
-                .class("page-intro"),
-        ],
+                .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(16))),
+        ].style(sty().margin_bottom(px(24))),
         div![
             RecentLogsPanel().limit(80),
             HostTablePanel(),
@@ -354,12 +471,12 @@ pub fn LogsPage() -> impl View {
 #[component]
 pub fn AboutPage() -> impl View {
     div![
-        h2("About"),
+        h2("About").style(sty().margin(px(0)).font_size(px(32)).font_weight(800).letter_spacing(px(-1))),
         p("This front end is rendered with Silex in WASM and shipped inside the service binary with rust-embed.")
-            .class("page-intro"),
+            .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(16))),
         div![
             div![
-                h3("What it does"),
+                h3("What it does").style(sty().margin(px(0))),
                 ul![
                     li("Shows the live runtime snapshot from the service."),
                     li("Lets you sync, reload, save, and stop the service."),
@@ -367,16 +484,16 @@ pub fn AboutPage() -> impl View {
                     li("Offers automatic refresh so you can watch state changes happen."),
                 ]
             ]
-            .class("card"),
+            .style(sty().background(AppTheme::BG_PANEL).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).border_radius(AppTheme::RADIUS).box_shadow(AppTheme::SHADOW).padding(px(24))),
             div![
-                h3("Operational notes"),
+                h3("Operational notes").style(sty().margin(px(0))),
                 ul![
                     li("The SPA fallback keeps client-side routes working on refresh."),
                     li("Config changes are sent as JSON to /api/config."),
                     li("The app theme and refresh preference are persisted locally."),
                 ]
             ]
-            .class("card"),
+            .style(sty().background(AppTheme::BG_PANEL).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).border_radius(AppTheme::RADIUS).box_shadow(AppTheme::SHADOW).padding(px(24))),
         ]
         .class("grid double"),
     ]
@@ -386,9 +503,15 @@ pub fn AboutPage() -> impl View {
 #[component]
 pub fn NotFoundPage() -> impl View {
     div![
-        h2("404"),
+        h2("404").style(
+            sty()
+                .margin(px(0))
+                .font_size(px(32))
+                .font_weight(800)
+                .letter_spacing(px(-1))
+        ),
         p("The route was not found. Use the sidebar to jump back into the dashboard.")
-            .class("page-intro"),
+            .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(16))),
     ]
     .class("page")
 }
@@ -397,7 +520,8 @@ pub fn NotFoundPage() -> impl View {
 fn SummaryPanel() -> impl View {
     let ctx = use_dashboard();
 
-    move || match ctx.snapshot.state.get() {
+    move || {
+        match ctx.snapshot.state.get() {
         ResourceState::Idle | ResourceState::Loading => div![loading_metric(
             "Status",
             "Loading...",
@@ -434,13 +558,14 @@ fn SummaryPanel() -> impl View {
         .class("grid metrics")
         .into_any(),
         ResourceState::Error(err) => div![
-            div("Snapshot error").class("metric-label"),
-            div(format!("Failed: {:?}", err)).class("metric-value status-bad"),
+            span("Snapshot error").style(sty().color(AppTheme::MUTED).text_transform(TextTransformKeyword::Uppercase).letter_spacing(px(1)).font_size(px(11)).font_weight(800)),
+            div(format!("Failed: {:?}", err)).style(sty().margin_top(px(12)).font_size(px(32)).font_weight(850).line_height(1).letter_spacing(px(-0.5)).color(AppTheme::DANGER)),
             p("The backend is reachable, but the dashboard could not deserialize a state snapshot.")
-                .class("metric-subtitle"),
+                .style(sty().margin_top(px(8)).color(AppTheme::MUTED).font_size(px(14))),
         ]
-        .class("card metric")
+        .style(sty().padding(px(24)).background(AppTheme::BG_PANEL).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).border_radius(AppTheme::RADIUS).box_shadow(AppTheme::SHADOW))
         .into_any(),
+    }
     }
 }
 
@@ -450,11 +575,30 @@ fn ServicePanel() -> impl View {
 
     div![
         div![
-            div![h3("Live Snapshot"), span("auto-updated").class("badge")].class("panel-header"),
+            div![
+                h3("Live Snapshot").style(sty().margin(px(0))),
+                StyledBadge("auto-updated")
+            ]
+            .style(
+                sty()
+                    .display(DisplayKeyword::Flex)
+                    .justify_content(JustifyContentKeyword::SpaceBetween)
+                    .align_items(AlignItemsKeyword::FlexStart)
+                    .gap(px(12))
+                    .flex_wrap(FlexWrapKeyword::Wrap)
+            ),
             move || match ctx.snapshot.state.get() {
                 ResourceState::Idle | ResourceState::Loading =>
                     div("Waiting for the next service snapshot...")
-                        .class("banner snapshot-state")
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6)
+                        )
                         .into_any(),
                 ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => div![
                     div![
@@ -487,58 +631,110 @@ fn ServicePanel() -> impl View {
                             time_span(snapshot.config.network_timeout_ms)
                         ),
                     ]
-                    .class("kv-list snapshot-summary"),
+                    .style(
+                        sty()
+                            .display(DisplayKeyword::Grid)
+                            .gap(px(10))
+                            .margin_top(px(4))
+                    ),
                 ]
                 .into_any(),
                 ResourceState::Error(err) => div![
-                    div("Snapshot error").class("metric-label"),
-                    div(format!("Failed to deserialize state snapshot: {:?}", err))
-                        .class("banner status-bad snapshot-state"),
+                    div("Snapshot error").style(
+                        sty()
+                            .color(AppTheme::MUTED)
+                            .text_transform(TextTransformKeyword::Uppercase)
+                            .letter_spacing(px(1))
+                            .font_size(px(11))
+                            .font_weight(800)
+                    ),
+                    div(format!("Failed to deserialize state snapshot: {:?}", err)).style(
+                        sty()
+                            .padding(px(16))
+                            .border_radius(px(14))
+                            .background(rgba(251, 113, 133, 0.03))
+                            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                            .font_size(px(14))
+                            .line_height(1.6)
+                            .color(AppTheme::DANGER)
+                            .margin_top(px(8))
+                    ),
                 ]
                 .class("stack")
                 .into_any(),
             }
         ]
-        .class("panel-section"),
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .flex_direction(FlexDirectionKeyword::Column)
+                .gap(px(12))
+                .padding_top(px(16))
+                .border_top(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+        ),
         div![
-            div![h3("Actions"), span("service commands").class("badge")].class("panel-header"),
             div![
-                button(span![icon_sync(), "Sync"])
+                h3("Actions").style(sty().margin(px(0))),
+                StyledBadge("service commands")
+            ]
+            .style(
+                sty()
+                    .display(DisplayKeyword::Flex)
+                    .justify_content(JustifyContentKeyword::SpaceBetween)
+                    .align_items(AlignItemsKeyword::FlexStart)
+                    .gap(px(12))
+                    .flex_wrap(FlexWrapKeyword::Wrap)
+            ),
+            div![
+                StyledToolButton(view_chain![icon_sync(), "Sync"])
                     .on(event::click, move |_| ctx.sync.mutate(()))
                     .attr("disabled", rx!(@fn ctx.sync.loading()))
-                    .class("tool"),
-                button(span![icon_reload(), "Reload"])
+                    .danger(false),
+                StyledToolButton(view_chain![icon_reload(), "Reload"])
                     .on(event::click, move |_| ctx.reload.mutate(()))
                     .attr("disabled", rx!(@fn ctx.reload.loading()))
-                    .class("tool"),
-                button(span![icon_save(), "Save"])
+                    .danger(false),
+                StyledToolButton(view_chain![icon_save(), "Save"])
                     .on(event::click, move |_| ctx.save.mutate(()))
                     .attr("disabled", rx!(@fn ctx.save.loading()))
-                    .class("tool"),
-                button(span![icon_stop(), "Stop"])
+                    .danger(false),
+                StyledToolButton(view_chain![icon_stop(), "Stop"])
                     .on(event::click, move |_| ctx.stop.mutate(()))
                     .attr("disabled", rx!(@fn ctx.stop.loading()))
-                    .class("tool tool-danger"),
+                    .danger(true),
             ]
-            .class("toolbar"),
+            .style(
+                sty()
+                    .display(DisplayKeyword::Flex)
+                    .flex_wrap(FlexWrapKeyword::Wrap)
+                    .gap(px(12))
+            ),
             move || {
                 let mut messages = Vec::new();
                 if let Some(msg) = ctx.sync.value() {
-                    messages.push(("Sync", msg, "status-ok"));
+                    messages.push(("Sync", msg, AppTheme::SUCCESS));
                 }
                 if let Some(msg) = ctx.reload.value() {
-                    messages.push(("Reload", msg, "status-ok"));
+                    messages.push(("Reload", msg, AppTheme::SUCCESS));
                 }
                 if let Some(msg) = ctx.save.value() {
-                    messages.push(("Save", msg, "status-ok"));
+                    messages.push(("Save", msg, AppTheme::SUCCESS));
                 }
                 if let Some(msg) = ctx.stop.value() {
-                    messages.push(("Stop", msg, "status-warn"));
+                    messages.push(("Stop", msg, AppTheme::WARNING));
                 }
 
                 if messages.is_empty() {
                     div("No action has completed yet.")
-                        .class("banner snapshot-state")
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6),
+                        )
                         .into_any()
                 } else {
                     div(messages
@@ -546,14 +742,40 @@ fn ServicePanel() -> impl View {
                         .map(|(label, msg, _)| format!("{label}: {msg}"))
                         .collect::<Vec<_>>()
                         .join("\n"))
-                    .class("banner snapshot-state")
+                    .style(
+                        sty()
+                            .padding(px(16))
+                            .border_radius(px(14))
+                            .background(rgba(255, 255, 255, 0.03))
+                            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                            .font_size(px(14))
+                            .line_height(1.6)
+                            .white_space(WhiteSpaceKeyword::PreWrap),
+                    )
                     .into_any()
                 }
             }
         ]
-        .class("panel-section"),
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .flex_direction(FlexDirectionKeyword::Column)
+                .gap(px(12))
+                .padding_top(px(16))
+                .border_top(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+        ),
     ]
-    .class("card panel snapshot-panel")
+    .style(
+        sty()
+            .background(AppTheme::BG_PANEL)
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .border_radius(AppTheme::RADIUS)
+            .box_shadow(AppTheme::SHADOW)
+            .padding(px(24))
+            .display(DisplayKeyword::Flex)
+            .flex_direction(FlexDirectionKeyword::Column)
+            .gap(px(16)),
+    )
 }
 
 #[component]
@@ -561,10 +783,29 @@ fn SnapshotQuickFacts() -> impl View {
     let ctx = use_dashboard();
 
     div![
-        div![h3("Quick Facts"), span("latest state").class("badge")].class("panel-header"),
+        div![
+            h3("Quick Facts").style(sty().margin(px(0))),
+            StyledBadge("latest state")
+        ]
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .justify_content(JustifyContentKeyword::SpaceBetween)
+                .align_items(AlignItemsKeyword::FlexStart)
+                .gap(px(12))
+                .flex_wrap(FlexWrapKeyword::Wrap)
+        ),
         move || match ctx.snapshot.state.get() {
             ResourceState::Idle | ResourceState::Loading => div("Waiting for snapshot...")
-                .class("banner snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(255, 255, 255, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                )
                 .into_any(),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => div![
                 kv_row("Config file", snapshot.config_path.clone()),
@@ -580,14 +821,33 @@ fn SnapshotQuickFacts() -> impl View {
                 ),
                 kv_row("Last result", snapshot.last_result.clone()),
             ]
-            .class("kv-list")
+            .style(sty().display(DisplayKeyword::Grid).gap(px(10)))
             .into_any(),
             ResourceState::Error(err) => div(format!("Snapshot error: {:?}", err))
-                .class("banner status-bad snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(251, 113, 133, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                        .color(AppTheme::DANGER)
+                )
                 .into_any(),
         }
     ]
-    .class("card panel stack")
+    .style(
+        sty()
+            .background(AppTheme::BG_PANEL)
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .border_radius(AppTheme::RADIUS)
+            .box_shadow(AppTheme::SHADOW)
+            .padding(px(24))
+            .display(DisplayKeyword::Flex)
+            .flex_direction(FlexDirectionKeyword::Column)
+            .gap(px(16)),
+    )
 }
 
 #[component]
@@ -595,10 +855,29 @@ fn SyncTuningPanel() -> impl View {
     let ctx = use_dashboard();
 
     div![
-        div![h3("Sync tuning"), span("config hints").class("badge")].class("panel-header"),
+        div![
+            h3("Sync tuning").style(sty().margin(px(0))),
+            StyledBadge("config hints")
+        ]
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .justify_content(JustifyContentKeyword::SpaceBetween)
+                .align_items(AlignItemsKeyword::FlexStart)
+                .gap(px(12))
+                .flex_wrap(FlexWrapKeyword::Wrap)
+        ),
         move || match ctx.snapshot.state.get() {
             ResourceState::Idle | ResourceState::Loading => div("Waiting for current config...")
-                .class("banner snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(255, 255, 255, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                )
                 .into_any(),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => div![
                 kv_row(
@@ -615,14 +894,33 @@ fn SyncTuningPanel() -> impl View {
                     },
                 ),
             ]
-            .class("kv-list")
+            .style(sty().display(DisplayKeyword::Grid).gap(px(10)))
             .into_any(),
             ResourceState::Error(err) => div(format!("Unable to inspect config: {:?}", err))
-                .class("banner status-bad snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(251, 113, 133, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                        .color(AppTheme::DANGER)
+                )
                 .into_any(),
         }
     ]
-    .class("card panel stack")
+    .style(
+        sty()
+            .background(AppTheme::BG_PANEL)
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .border_radius(AppTheme::RADIUS)
+            .box_shadow(AppTheme::SHADOW)
+            .padding(px(24))
+            .display(DisplayKeyword::Flex)
+            .flex_direction(FlexDirectionKeyword::Column)
+            .gap(px(16)),
+    )
 }
 
 #[component]
@@ -630,10 +928,29 @@ fn HostSummaryPanel() -> impl View {
     let ctx = use_dashboard();
 
     div![
-        div![h3("Host summary"), span("topology").class("badge")].class("panel-header"),
+        div![
+            h3("Host summary").style(sty().margin(px(0))),
+            StyledBadge("topology")
+        ]
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .justify_content(JustifyContentKeyword::SpaceBetween)
+                .align_items(AlignItemsKeyword::FlexStart)
+                .gap(px(12))
+                .flex_wrap(FlexWrapKeyword::Wrap)
+        ),
         move || match ctx.snapshot.state.get() {
             ResourceState::Idle | ResourceState::Loading => div("Loading host list...")
-                .class("banner snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(255, 255, 255, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                )
                 .into_any(),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => {
                 let mut items = snapshot
@@ -653,20 +970,56 @@ fn HostSummaryPanel() -> impl View {
 
                 if items.is_empty() {
                     div("No hosts configured.")
-                        .class("banner snapshot-state")
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6),
+                        )
                         .into_any()
                 } else {
-                    div![div(items.join("\n")).class("banner snapshot-state")]
-                        .class("stack")
+                    div(items.join("\n"))
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6)
+                                .white_space(WhiteSpaceKeyword::PreWrap),
+                        )
                         .into_any()
                 }
             }
             ResourceState::Error(err) => div(format!("Host list error: {:?}", err))
-                .class("banner status-bad snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(251, 113, 133, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                        .color(AppTheme::DANGER)
+                )
                 .into_any(),
         }
     ]
-    .class("card panel stack")
+    .style(
+        sty()
+            .background(AppTheme::BG_PANEL)
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .border_radius(AppTheme::RADIUS)
+            .box_shadow(AppTheme::SHADOW)
+            .padding(px(24))
+            .display(DisplayKeyword::Flex)
+            .flex_direction(FlexDirectionKeyword::Column)
+            .gap(px(16)),
+    )
 }
 
 #[component]
@@ -674,10 +1027,29 @@ fn HostTablePanel() -> impl View {
     let ctx = use_dashboard();
 
     div![
-        div![h3("Hosts"), span("current matrix").class("badge")].class("panel-header"),
+        div![
+            h3("Hosts").style(sty().margin(px(0))),
+            StyledBadge("current matrix")
+        ]
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .justify_content(JustifyContentKeyword::SpaceBetween)
+                .align_items(AlignItemsKeyword::FlexStart)
+                .gap(px(12))
+                .flex_wrap(FlexWrapKeyword::Wrap)
+        ),
         move || match ctx.snapshot.state.get() {
             ResourceState::Idle | ResourceState::Loading => div("Loading hosts...")
-                .class("banner snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(255, 255, 255, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                )
                 .into_any(),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => {
                 let rows = snapshot
@@ -696,20 +1068,56 @@ fn HostTablePanel() -> impl View {
 
                 if rows.is_empty() {
                     div("No hosts configured.")
-                        .class("banner snapshot-state")
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6),
+                        )
                         .into_any()
                 } else {
-                    div![div(rows.join("\n")).class("banner snapshot-state")]
-                        .class("stack")
+                    div(rows.join("\n"))
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6)
+                                .white_space(WhiteSpaceKeyword::PreWrap),
+                        )
                         .into_any()
                 }
             }
             ResourceState::Error(err) => div(format!("Host table error: {:?}", err))
-                .class("banner status-bad snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(251, 113, 133, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                        .color(AppTheme::DANGER)
+                )
                 .into_any(),
         }
     ]
-    .class("card panel stack")
+    .style(
+        sty()
+            .background(AppTheme::BG_PANEL)
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .border_radius(AppTheme::RADIUS)
+            .box_shadow(AppTheme::SHADOW)
+            .padding(px(24))
+            .display(DisplayKeyword::Flex)
+            .flex_direction(FlexDirectionKeyword::Column)
+            .gap(px(16)),
+    )
 }
 
 #[component]
@@ -718,13 +1126,28 @@ pub fn RecentLogsPanel(limit: usize) -> impl View {
 
     div![
         div![
-            h3("Logs"),
-            span(format!("last {limit} lines")).class("badge"),
+            h3("Logs").style(sty().margin(px(0))),
+            StyledBadge(format!("last {limit} lines")),
         ]
-        .class("panel-header"),
+        .style(
+            sty()
+                .display(DisplayKeyword::Flex)
+                .justify_content(JustifyContentKeyword::SpaceBetween)
+                .align_items(AlignItemsKeyword::FlexStart)
+                .gap(px(12))
+                .flex_wrap(FlexWrapKeyword::Wrap)
+        ),
         move || match ctx.snapshot.state.get() {
             ResourceState::Idle | ResourceState::Loading => div("Loading logs...")
-                .class("banner snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(255, 255, 255, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                )
                 .into_any(),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => {
                 let logs = snapshot
@@ -737,20 +1160,62 @@ pub fn RecentLogsPanel(limit: usize) -> impl View {
 
                 if logs.is_empty() {
                     div("No logs yet.")
-                        .class("banner snapshot-state")
+                        .style(
+                            sty()
+                                .padding(px(16))
+                                .border_radius(px(14))
+                                .background(rgba(255, 255, 255, 0.03))
+                                .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                                .font_size(px(14))
+                                .line_height(1.6),
+                        )
                         .into_any()
                 } else {
-                    div![div(logs.join("\n")).class("log-line")]
-                        .class("logs stack")
-                        .into_any()
+                    div![
+                        div(logs.join("\n")).style(
+                            sty()
+                                .padding(px(12))
+                                .border_bottom(border(
+                                    px(1),
+                                    BorderStyleKeyword::Solid,
+                                    AppTheme::LINE
+                                ))
+                                .font_family("'JetBrains Mono', monospace")
+                                .font_size(px(12))
+                                .line_height(1.5)
+                                .white_space(WhiteSpaceKeyword::PreWrap)
+                                .word_break(WordBreakKeyword::BreakAll)
+                        )
+                    ]
+                    .style(sty().max_height(px(600)).overflow_y(OverflowYKeyword::Auto))
+                    .into_any()
                 }
             }
             ResourceState::Error(err) => div(format!("Log error: {:?}", err))
-                .class("banner status-bad snapshot-state")
+                .style(
+                    sty()
+                        .padding(px(16))
+                        .border_radius(px(14))
+                        .background(rgba(251, 113, 133, 0.03))
+                        .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+                        .font_size(px(14))
+                        .line_height(1.6)
+                        .color(AppTheme::DANGER)
+                )
                 .into_any(),
         }
     ]
-    .class("card panel stack")
+    .style(
+        sty()
+            .background(AppTheme::BG_PANEL)
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .border_radius(AppTheme::RADIUS)
+            .box_shadow(AppTheme::SHADOW)
+            .padding(px(24))
+            .display(DisplayKeyword::Flex)
+            .flex_direction(FlexDirectionKeyword::Column)
+            .gap(px(16)),
+    )
 }
 
 #[component]
@@ -759,22 +1224,22 @@ fn MutationLedger() -> impl View {
 
     div![
         div![
-            h3("Command state"),
+            h3("Command state").style(sty().margin(px(0))),
             action_status("Sync", ctx.sync.loading(), ctx.sync.error().map(|e| format!("{:?}", e)), ctx.sync.value()),
             action_status("Reload", ctx.reload.loading(), ctx.reload.error().map(|e| format!("{:?}", e)), ctx.reload.value()),
             action_status("Save", ctx.save.loading(), ctx.save.error().map(|e| format!("{:?}", e)), ctx.save.value()),
             action_status("Apply draft", ctx.apply_config.loading(), ctx.apply_config.error().map(|e| format!("{:?}", e)), ctx.apply_config.value()),
             action_status("Stop", ctx.stop.loading(), ctx.stop.error().map(|e| format!("{:?}", e)), ctx.stop.value()),
         ]
-        .class("card panel stack"),
+        .style(sty().background(AppTheme::BG_PANEL).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).border_radius(AppTheme::RADIUS).box_shadow(AppTheme::SHADOW).padding(px(24)).display(DisplayKeyword::Flex).flex_direction(FlexDirectionKeyword::Column).gap(px(16))),
         div![
-            h3("Notes"),
+            h3("Notes").style(sty().margin(px(0))),
             p("The command panel above stays in sync with mutation state and the snapshot refresh loop. It gives you a compact history of what the dashboard asked the service to do.")
-                .class("page-intro"),
+                .style(sty().color(AppTheme::MUTED).font_size(px(16))),
             p("If you reload the page, the draft config and the theme preference survive because both are stored locally in the browser.")
-                .class("page-intro"),
+                .style(sty().color(AppTheme::MUTED).font_size(px(16))),
         ]
-        .class("card panel stack"),
+        .style(sty().background(AppTheme::BG_PANEL).border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE)).border_radius(AppTheme::RADIUS).box_shadow(AppTheme::SHADOW).padding(px(24)).display(DisplayKeyword::Flex).flex_direction(FlexDirectionKeyword::Column).gap(px(16))),
     ]
     .class("grid double")
 }
@@ -795,11 +1260,22 @@ pub fn action_status(
         "idle".to_string()
     };
 
-    let mut view = div![span(label).class("badge"), span(status),].class("banner");
+    let view = div![StyledBadge(label), span(status),].style(
+        sty()
+            .padding(px(16))
+            .border_radius(px(14))
+            .background(rgba(255, 255, 255, 0.03))
+            .border(border(px(1), BorderStyleKeyword::Solid, AppTheme::LINE))
+            .font_size(px(14))
+            .line_height(1.6)
+            .display(DisplayKeyword::Flex)
+            .justify_content(JustifyContentKeyword::SpaceBetween),
+    );
     if loading {
-        view = view.class("pulse");
+        view.class("pulse").into_any()
+    } else {
+        view.into_any()
     }
-    view.into_any()
 }
 
 pub fn metric_card(
@@ -807,22 +1283,58 @@ pub fn metric_card(
     value: impl View + 'static,
     subtitle: impl View + 'static,
 ) -> AnyView {
-    div![
-        div(label).class("metric-label"),
-        div(value).class("metric-value"),
-        div(subtitle).class("metric-subtitle"),
-    ]
-    .class("card metric")
+    StyledMetricCard(view_chain![
+        div(label).style(
+            sty()
+                .color(AppTheme::MUTED)
+                .text_transform(TextTransformKeyword::Uppercase)
+                .letter_spacing(px(1.1))
+                .font_size(px(11))
+                .font_weight(800)
+        ),
+        div(value).style(
+            sty()
+                .margin_top(px(12))
+                .font_size(px(32))
+                .font_weight(850)
+                .line_height(1)
+                .letter_spacing(px(-0.5))
+        ),
+        div(subtitle).style(
+            sty()
+                .margin_top(px(8))
+                .color(AppTheme::MUTED)
+                .font_size(px(14))
+        ),
+    ])
     .into_any()
 }
 
 pub fn loading_metric(label: &'static str, value: &'static str, subtitle: &'static str) -> AnyView {
-    div![
-        div(label).class("metric-label"),
-        div(value).class("metric-value"),
-        div(subtitle).class("metric-subtitle"),
-    ]
-    .class("card metric")
+    StyledMetricCard(view_chain![
+        div(label).style(
+            sty()
+                .color(AppTheme::MUTED)
+                .text_transform(TextTransformKeyword::Uppercase)
+                .letter_spacing(px(1.1))
+                .font_size(px(11))
+                .font_weight(800)
+        ),
+        div(value).style(
+            sty()
+                .margin_top(px(12))
+                .font_size(px(32))
+                .font_weight(850)
+                .line_height(1)
+                .letter_spacing(px(-0.5))
+        ),
+        div(subtitle).style(
+            sty()
+                .margin_top(px(8))
+                .color(AppTheme::MUTED)
+                .font_size(px(14))
+        ),
+    ])
     .into_any()
 }
 

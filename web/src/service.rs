@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use silex::prelude::*;
 
 pub use rchronos_shared::{
-    format_ms_adaptive, Agreement, AppConfig, RequestType, RuntimeSnapshot, SyncMode,
+    Agreement, AppConfig, RequestType, RuntimeSnapshot, SyncMode, format_ms_adaptive,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -21,57 +21,44 @@ pub struct DashboardContext {
     pub config_draft: Persistent<String>,
     pub auto_refresh: Persistent<bool>,
     pub theme_name: Persistent<String>,
-    pub theme: ReadSignal<AppTheme>,
 }
 
 pub fn use_dashboard() -> DashboardContext {
     expect_context::<DashboardContext>()
 }
 
-define_theme! {
+theme! {
+    #[theme(main, prefix = "slx-theme")]
     pub struct AppTheme {
-        #[theme(var = "--bg")]
-        pub bg: String,
-        #[theme(var = "--bg-elevated")]
-        pub bg_elevated: String,
-        #[theme(var = "--bg-panel")]
-        pub bg_panel: String,
-        #[theme(var = "--text")]
-        pub text: String,
-        #[theme(var = "--muted")]
-        pub muted: String,
-        #[theme(var = "--line")]
-        pub line: String,
-        #[theme(var = "--accent")]
-        pub accent: String,
-        #[theme(var = "--accent-2")]
-        pub accent_2: String,
-        #[theme(var = "--success")]
-        pub success: String,
-        #[theme(var = "--warning")]
-        pub warning: String,
-        #[theme(var = "--danger")]
-        pub danger: String,
-        #[theme(var = "--shadow")]
-        pub shadow: String,
-        #[theme(var = "--radius")]
+        pub bg: Hex,
+        pub bg_elevated: Hex,
+        pub bg_panel: Hex,
+        pub text: Hex,
+        pub muted: Hex,
+        pub line: Hex,
+        pub accent: Hex,
+        pub accent_2: Hex,
+        pub success: Hex,
+        pub warning: Hex,
+        pub danger: Hex,
+        pub shadow: String, // Keep String for complex shadow values
         pub radius: Px,
     }
 }
 
 pub fn default_light_theme() -> AppTheme {
     AppTheme {
-        bg: "#f4f7fb".to_string(),
-        bg_elevated: "rgba(255, 255, 255, 0.9)".to_string(),
-        bg_panel: "rgba(255, 255, 255, 0.96)".to_string(),
-        text: "#112033".to_string(),
-        muted: "#54657d".to_string(),
-        line: "rgba(17, 32, 51, 0.12)".to_string(),
-        accent: "#2563eb".to_string(),
-        accent_2: "#7c3aed".to_string(),
-        success: "#16a34a".to_string(),
-        warning: "#b45309".to_string(),
-        danger: "#dc2626".to_string(),
+        bg: hex("#f4f7fb"),
+        bg_elevated: hex("#ffffff"),
+        bg_panel: hex("#ffffff"),
+        text: hex("#112033"),
+        muted: hex("#54657d"),
+        line: hex("#e2e8f0"),
+        accent: hex("#2563eb"),
+        accent_2: hex("#7c3aed"),
+        success: hex("#16a34a"),
+        warning: hex("#b45309"),
+        danger: hex("#dc2626"),
         shadow: "0 18px 40px rgba(17, 32, 51, 0.12)".to_string(),
         radius: px(20),
     }
@@ -79,17 +66,17 @@ pub fn default_light_theme() -> AppTheme {
 
 pub fn default_dark_theme() -> AppTheme {
     AppTheme {
-        bg: "#06101d".to_string(),
-        bg_elevated: "rgba(9, 17, 30, 0.92)".to_string(),
-        bg_panel: "rgba(14, 24, 40, 0.92)".to_string(),
-        text: "#e5eef8".to_string(),
-        muted: "#8ea2bb".to_string(),
-        line: "rgba(157, 179, 208, 0.16)".to_string(),
-        accent: "#7dd3fc".to_string(),
-        accent_2: "#a78bfa".to_string(),
-        success: "#4ade80".to_string(),
-        warning: "#fbbf24".to_string(),
-        danger: "#fb7185".to_string(),
+        bg: hex("#06101d"),
+        bg_elevated: hex("#09111e"),
+        bg_panel: hex("#0e1828"),
+        text: hex("#e5eef8"),
+        muted: hex("#8ea2bb"),
+        line: hex("#1e293b"),
+        accent: hex("#7dd3fc"),
+        accent_2: hex("#a78bfa"),
+        success: hex("#4ade80"),
+        warning: hex("#fbbf24"),
+        danger: hex("#fb7185"),
         shadow: "0 18px 50px rgba(0, 0, 0, 0.34)".to_string(),
         radius: px(20),
     }
