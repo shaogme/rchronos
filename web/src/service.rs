@@ -48,37 +48,37 @@ theme! {
 
 pub fn default_light_theme() -> AppTheme {
     AppTheme {
-        bg: hex("#f4f7fb"),
+        bg: hex("#f0f4f8"),
         bg_elevated: hex("#ffffff"),
-        bg_panel: hex("#ffffff"),
-        text: hex("#112033"),
-        muted: hex("#54657d"),
+        bg_panel: hex("#ffffff").alpha(0.6),
+        text: hex("#0f172a"),
+        muted: hex("#64748b"),
         line: hex("#e2e8f0"),
         accent: hex("#2563eb"),
         accent_2: hex("#7c3aed"),
-        success: hex("#16a34a"),
-        warning: hex("#b45309"),
-        danger: hex("#dc2626"),
-        shadow: "0 18px 40px rgba(17, 32, 51, 0.12)".to_string(),
-        radius: px(20),
+        success: hex("#10b981"),
+        warning: hex("#f59e0b"),
+        danger: hex("#ef4444"),
+        shadow: "0 12px 40px -10px rgba(15, 23, 42, 0.1), 0 4px 12px -4px rgba(15, 23, 42, 0.05)".to_string(),
+        radius: px(24),
     }
 }
 
 pub fn default_dark_theme() -> AppTheme {
     AppTheme {
-        bg: hex("#06101d"),
-        bg_elevated: hex("#09111e"),
-        bg_panel: hex("#0e1828"),
-        text: hex("#e5eef8"),
-        muted: hex("#8ea2bb"),
-        line: hex("#1e293b"),
-        accent: hex("#7dd3fc"),
-        accent_2: hex("#a78bfa"),
-        success: hex("#4ade80"),
+        bg: hex("#020617"),
+        bg_elevated: hex("#0f172a"),
+        bg_panel: hex("#1e293b").alpha(0.6),
+        text: hex("#f8fafc"),
+        muted: hex("#94a3b8"),
+        line: hex("#334155"),
+        accent: hex("#38bdf8"),
+        accent_2: hex("#818cf8"),
+        success: hex("#34d399"),
         warning: hex("#fbbf24"),
         danger: hex("#fb7185"),
-        shadow: "0 18px 50px rgba(0, 0, 0, 0.34)".to_string(),
-        radius: px(20),
+        shadow: "0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 10px 20px -10px rgba(0, 0, 0, 0.4)".to_string(),
+        radius: px(24),
     }
 }
 

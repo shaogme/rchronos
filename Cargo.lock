@@ -1644,9 +1644,9 @@ dependencies = [
 
 [[package]]
 name = "silex"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c6d7773de541378bb748acddc3bda750c49d100127053a3b616bb449a51a809"
+checksum = "7f7f45e5642723c2c5a97ea6192e47b822cb03eb4001471ed74d23764e008734"
 dependencies = [
  "gloo-timers",
  "js-sys",
@@ -1665,9 +1665,9 @@ dependencies = [
 
 [[package]]
 name = "silex_core"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37308b0a3211f4047f4a492ab971054514e222788db2ca6093a1554b0ed56fe7"
+checksum = "9aaf4e91b3809e5d74cee6436e27c03076ab5bae15370480037f0ccee93e131c"
 dependencies = [
  "silex_reactivity",
  "silex_rx",
@@ -1678,9 +1678,9 @@ dependencies = [
 
 [[package]]
 name = "silex_css"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8d5942fa5a684ef8f862618671748f9940110cf73458e057a9e639652b85340"
+checksum = "d4b6093f19df9322daadaf652dc6ca02a8bc366f5bbd599a85919b47d1656967"
 dependencies = [
  "js-sys",
  "silex_core",
@@ -1693,9 +1693,9 @@ dependencies = [
 
 [[package]]
 name = "silex_dom"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5f29fe009d0584574f587d53a762ef1eefe2f4d0eeff43a471efe347bdf45c7"
+checksum = "5c153d50ce02c611d2ae32c72fdc2ac4c1e5f06373eb7e976d0dc8578a5cffdf"
 dependencies = [
  "js-sys",
  "silex_core",
@@ -1706,15 +1706,15 @@ dependencies = [
 
 [[package]]
 name = "silex_hash"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74c9fef547c80f6c3574134c6a757ff94fa2ec84ba84ce7b8a2b9570b3271748"
+checksum = "b900b164870d915ccd7c1ac2416c9d170a6fbeb14d6ea261750fbd6c31bcdb39"
 
 [[package]]
 name = "silex_html"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "124cef456ae9f7b3ee1c29a77e455876471b4ec1333b705548eabeb9391085c4"
+checksum = "b104f29c14a555559670f6ae347e8659b6b84179fa22ca9e362275c884c5927a"
 dependencies = [
  "silex_dom",
  "wasm-bindgen",
@@ -1723,9 +1723,9 @@ dependencies = [
 
 [[package]]
 name = "silex_macros"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01e091dcc95a3889bf7db3e2807ba598cac46e2ed43e5b6cc64205b360f33187"
+checksum = "e7f18652ef28cb507037e5956dbc4860ea909054147bfdc57d91c190bfa69538"
 dependencies = [
  "lightningcss",
  "proc-macro2",
@@ -1736,18 +1736,18 @@ dependencies = [
 
 [[package]]
 name = "silex_reactivity"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef443ba2fa768eada1ff256b4f3ff9908d3e2fb7f58e8e6da02b050d89362976"
+checksum = "2185e90c78c70a1ef8edc639d53ae6b7c2fa032d1080fe375db0466991192f63"
 dependencies = [
  "silex_vtable",
 ]
 
 [[package]]
 name = "silex_rx"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "547727792efce7c8936d0b903dc308ea8656646fee1b07de4a1f6241248de4f3"
+checksum = "3c5d6fdc958055537a0158d0578fdfed2a28dee10b379acfd5ecd067ec7bf682"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1756,9 +1756,9 @@ dependencies = [
 
 [[package]]
 name = "silex_vtable"
-version = "0.1.0-beta.7"
+version = "0.1.0-beta.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "883277ee0bd31fae6bf8d58b32db93204ea70f0b5c0acd4c78d574a09e1902a6"
+checksum = "3e5f2e2bb57a2f2aca1dbbf8af1df3df018636e2c6dd34ee1c4840ba08f16dca"
 
 [[package]]
 name = "siphasher"
