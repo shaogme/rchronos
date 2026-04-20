@@ -80,11 +80,9 @@ async fn api_update_config_json(
     if let Err(err) = app.update_config_from_toml(&form.toml).await {
         app.log(format!("E: config update failed: {err}")).await;
         app.set_status("Config update failed").await;
-        app.set_last_result(format!("Failed: {err}")).await;
         return Err((StatusCode::BAD_REQUEST, err.to_string()));
     }
 
-    app.set_last_result("Config updated from web UI").await;
     Ok(StatusCode::NO_CONTENT)
 }
 

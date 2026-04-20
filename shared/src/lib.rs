@@ -155,12 +155,26 @@ impl Default for AppConfig {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HostStatus {
+    pub name: String,
+    pub request_type: RequestType,
+    pub priority: u32,
+    pub fail_count: u32,
+    pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+pub struct RuntimeStatus {
+    pub current_operation: String,
+    pub hosts: Vec<HostStatus>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 pub struct RuntimeSnapshot {
     pub config: AppConfig,
     pub logs: Vec<String>,
-    pub status: String,
-    pub last_result: String,
+    pub status: RuntimeStatus,
     pub syncing: bool,
     pub config_path: String,
 }

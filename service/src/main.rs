@@ -26,14 +26,14 @@ use windows::Win32::System::EventLog::{
 };
 use windows::core::w;
 
-use rchronos_shared::RuntimeSnapshot;
+use rchronos_shared::{HostStatus, RuntimeSnapshot, RuntimeStatus};
 
 mod config;
 mod sync;
 mod web;
 
 use config::{AppConfig, AppConfigExt, ConfigError, config_path};
-use sync::{SyncReport, SyncTrigger, perform_sync, request_mode_name};
+use sync::{SyncResult, SyncTrigger, collect_candidates, perform_sync, request_mode_name};
 
 use windows_service::{
     define_windows_service,
@@ -323,12 +323,11 @@ enum AppMessage {
     GetSnapshot(oneshot::Sender<RuntimeSnapshot>),
     Log(String),
     SetStatus(String),
-    SetLastResult(String),
     ReloadConfig(oneshot::Sender<Result<()>>),
     SaveConfig(oneshot::Sender<Result<()>>),
     UpdateConfigFromToml(String, oneshot::Sender<Result<()>>),
     RequestSync(SyncTrigger),
-    SyncFinished(Result<SyncReport>, SyncTrigger),
+    SyncFinished(Result<SyncResult>, SyncTrigger),
     GetConfigDelay(oneshot::Sender<u64>),
 }
 
@@ -336,8 +335,8 @@ enum AppMessage {
 struct RuntimeState {
     config: AppConfig,
     logs: Vec<String>,
-    status: String,
-    last_result: String,
+    status: RuntimeStatus,
+    host_failures: std::collections::BTreeMap<String, (u32, Option<String>)>,
     syncing: bool,
 }
 
@@ -355,18 +354,46 @@ impl AppActor {
         config: AppConfig,
         config_path: PathBuf,
     ) -> Self {
-        Self {
+        let state = RuntimeState {
+            config,
+            logs: vec![],
+            status: RuntimeStatus {
+                current_operation: "Ready".to_string(),
+                hosts: vec![],
+            },
+            host_failures: std::collections::BTreeMap::new(),
+            syncing: false,
+        };
+        let mut actor = Self {
             receiver,
             sender,
-            state: RuntimeState {
-                config,
-                logs: vec![],
-                status: "Ready".to_string(),
-                last_result: "No sync yet".to_string(),
-                syncing: false,
-            },
+            state,
             config_path,
-        }
+        };
+        actor.update_hosts_in_status();
+        actor
+    }
+
+    fn update_hosts_in_status(&mut self) {
+        let candidates = collect_candidates(&self.state.config);
+        self.state.status.hosts = candidates
+            .into_iter()
+            .map(|c| {
+                let (fail_count, last_error) = self
+                    .state
+                    .host_failures
+                    .get(&c.name)
+                    .cloned()
+                    .unwrap_or((0, None));
+                HostStatus {
+                    name: c.name,
+                    request_type: c.request_type,
+                    priority: c.priority,
+                    fail_count,
+                    last_error,
+                }
+            })
+            .collect();
     }
 
     async fn run(&mut self) {
@@ -377,7 +404,6 @@ impl AppActor {
                         config: self.state.config.clone(),
                         logs: self.state.logs.clone(),
                         status: self.state.status.clone(),
-                        last_result: self.state.last_result.clone(),
                         syncing: self.state.syncing,
                         config_path: self.config_path.display().to_string(),
                     };
@@ -391,15 +417,13 @@ impl AppActor {
                     }
                 }
                 AppMessage::SetStatus(status) => {
-                    self.state.status = status;
-                }
-                AppMessage::SetLastResult(last_result) => {
-                    self.state.last_result = last_result;
+                    self.state.status.current_operation = status;
                 }
                 AppMessage::ReloadConfig(tx) => {
                     let res = match AppConfig::load(&self.config_path) {
                         Ok(config) => {
                             self.state.config = config;
+                            self.update_hosts_in_status();
                             Ok(())
                         }
                         Err(err) => Err(err.into()),
@@ -419,6 +443,7 @@ impl AppActor {
                         let config: AppConfig = toml::from_str(&content)
                             .map_err(|e| AppError::msg(format!("parse config form: {e}")))?;
                         self.state.config = config;
+                        self.update_hosts_in_status();
                         self.state
                             .config
                             .save(&self.config_path)
@@ -434,7 +459,8 @@ impl AppActor {
                             .push(format!("Sync ignored: already running ({trigger})"));
                     } else {
                         self.state.syncing = true;
-                        self.state.status = format!("Syncing ({trigger})");
+                        self.state.status.current_operation = format!("Syncing ({trigger})");
+                        self.update_hosts_in_status();
                         self.state.logs.push(format!("Starting {trigger} sync"));
 
                         let config = self.state.config.clone();
@@ -463,49 +489,55 @@ impl AppActor {
                         self.state.logs.drain(0..overflow);
                     }
                 }
-                AppMessage::SyncFinished(result, _trigger) => {
+                AppMessage::SyncFinished(result, trigger) => {
                     self.state.syncing = false;
                     match result {
-                        Ok(report) => {
-                            self.state.last_result = format!(
-                                "{} via {} ({}) on {} at {}",
-                                if report.corrected {
-                                    "Synced"
-                                } else {
-                                    "Checked"
-                                },
-                                report.method,
-                                request_mode_name(report.request_type),
-                                report.server,
-                                report
-                                    .applied_utc
-                                    .with_timezone(&Local)
-                                    .format("%Y-%m-%d %H:%M:%S")
-                            );
-                            self.state.status = "Ready".to_string();
-                            self.state.logs.push(format!(
-                                "[OK] {} ({}) -> {} | deviation={}ms | {}",
-                                report.server,
-                                request_mode_name(report.request_type),
-                                report
-                                    .applied_utc
-                                    .with_timezone(&Local)
-                                    .format("%Y-%m-%d %H:%M:%S"),
-                                report.deviation_ms,
-                                report.method
-                            ));
-                            self.state.logs.push(format!(
-                                "Remote UTC: {}, Local before: {}",
-                                report.remote_utc.format("%Y-%m-%d %H:%M:%S"),
-                                report.local_before.format("%Y-%m-%d %H:%M:%S")
-                            ));
+                        Ok(sync_res) => {
+                            // Update failure states for failed attempts in this run
+                            for attempt in sync_res.failed_attempts {
+                                let entry =
+                                    self.state.host_failures.entry(attempt.host).or_default();
+                                entry.0 += 1;
+                                entry.1 = Some(attempt.error);
+                            }
+
+                            if let Some(report) = sync_res.report {
+                                // Success - clear failure state for THIS host
+                                self.state.host_failures.remove(&report.server);
+
+                                self.state.status.current_operation = "Ready".to_string();
+                                self.state.logs.push(format!(
+                                    "[OK] {} ({}) -> {} | deviation={}ms | {}",
+                                    report.server,
+                                    request_mode_name(report.request_type),
+                                    report
+                                        .applied_utc
+                                        .with_timezone(&Local)
+                                        .format("%Y-%m-%d %H:%M:%S"),
+                                    report.deviation_ms,
+                                    report.method
+                                ));
+                                self.state.logs.push(format!(
+                                    "Remote UTC: {}, Local before: {}",
+                                    report.remote_utc.format("%Y-%m-%d %H:%M:%S"),
+                                    report.local_before.format("%Y-%m-%d %H:%M:%S")
+                                ));
+                            } else {
+                                // All failed
+                                self.state.status.current_operation =
+                                    format!("Sync failed ({trigger})");
+                                self.state
+                                    .logs
+                                    .push(format!("E: all hosts failed in {trigger} sync"));
+                            }
                         }
                         Err(err) => {
-                            self.state.status = "Sync failed".to_string();
-                            self.state.last_result = format!("Failed: {err}");
-                            self.state.logs.push(format!("E: sync failed: {err}"));
+                            self.state.status.current_operation = "Engine error".to_string();
+                            self.state.logs.push(format!("E: sync engine error: {err}"));
                         }
                     }
+                    self.update_hosts_in_status();
+
                     if self.state.logs.len() > self.state.config.max_log_lines {
                         let overflow = self.state.logs.len() - self.state.config.max_log_lines;
                         self.state.logs.drain(0..overflow);
@@ -550,8 +582,10 @@ impl AppRuntime {
         rx.await.unwrap_or_else(|_| RuntimeSnapshot {
             config: AppConfig::default(),
             logs: vec!["E: Actor died".to_string()],
-            status: "Error".to_string(),
-            last_result: "Actor died".to_string(),
+            status: RuntimeStatus {
+                current_operation: "Error".to_string(),
+                hosts: vec![],
+            },
             syncing: false,
             config_path: self.config_path.display().to_string(),
         })
@@ -572,13 +606,6 @@ impl AppRuntime {
 
     pub async fn set_status(&self, status: impl Into<String>) {
         let _ = self.sender.send(AppMessage::SetStatus(status.into())).await;
-    }
-
-    pub async fn set_last_result(&self, last_result: impl Into<String>) {
-        let _ = self
-            .sender
-            .send(AppMessage::SetLastResult(last_result.into()))
-            .await;
     }
 
     pub async fn reload_config(&self) -> Result<()> {

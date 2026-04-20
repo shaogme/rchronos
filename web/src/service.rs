@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use silex::prelude::*;
 
 pub use rchronos_shared::{
-    Agreement, AppConfig, RequestType, RuntimeSnapshot, SyncMode, format_ms_adaptive,
+    Agreement, AppConfig, HostStatus, RequestType, RuntimeSnapshot, SyncMode, format_ms_adaptive,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -59,7 +59,8 @@ pub fn default_light_theme() -> AppTheme {
         success: hex("#10b981"),
         warning: hex("#f59e0b"),
         danger: hex("#ef4444"),
-        shadow: "0 12px 40px -10px rgba(15, 23, 42, 0.1), 0 4px 12px -4px rgba(15, 23, 42, 0.05)".to_string(),
+        shadow: "0 12px 40px -10px rgba(15, 23, 42, 0.1), 0 4px 12px -4px rgba(15, 23, 42, 0.05)"
+            .to_string(),
         radius: px(24),
     }
 }
@@ -77,7 +78,8 @@ pub fn default_dark_theme() -> AppTheme {
         success: hex("#34d399"),
         warning: hex("#fbbf24"),
         danger: hex("#fb7185"),
-        shadow: "0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 10px 20px -10px rgba(0, 0, 0, 0.4)".to_string(),
+        shadow: "0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 10px 20px -10px rgba(0, 0, 0, 0.4)"
+            .to_string(),
         radius: px(24),
     }
 }

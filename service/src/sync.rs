@@ -52,8 +52,19 @@ pub struct SyncReport {
     pub applied_utc: DateTime<Utc>,
     pub local_before: DateTime<Local>,
     pub deviation_ms: u64,
-    pub corrected: bool,
     pub method: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct HostAttempt {
+    pub host: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SyncResult {
+    pub report: Option<SyncReport>,
+    pub failed_attempts: Vec<HostAttempt>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,7 +84,7 @@ impl std::fmt::Display for SyncTrigger {
     }
 }
 
-pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport> {
+pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResult> {
     let _ = apply_windows_time_policy(config.disable_win32_time);
 
     let client = Client::builder()
@@ -81,7 +92,7 @@ pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport
         .build()
         .map_err(|e| AppError::msg(format!("build HTTP client: {e}")))?;
 
-    let mut errors = Vec::new();
+    let mut failed_attempts = Vec::new();
     for host in collect_candidates(config) {
         if !request_allowed(config, host.request_type) {
             continue;
@@ -95,62 +106,52 @@ pub fn perform_sync(config: &AppConfig, config_path: &Path) -> Result<SyncReport
                 let now_utc = Utc::now();
                 let deviation_ms = (adjusted_utc - now_utc).num_milliseconds().unsigned_abs();
 
-                if deviation_ms <= config.deviation_offset_ms {
-                    return Ok(SyncReport {
+                let report = if deviation_ms <= config.deviation_offset_ms {
+                    SyncReport {
                         server: host.name,
                         request_type: host.request_type,
                         remote_utc,
                         applied_utc: adjusted_utc,
                         local_before,
                         deviation_ms,
-                        corrected: false,
                         method: "skip-within-deviation".to_string(),
-                    });
-                }
-
-                let method = match config.sync_mode {
-                    SyncMode::Off => {
-                        return Ok(SyncReport {
-                            server: host.name,
-                            request_type: host.request_type,
-                            remote_utc,
-                            applied_utc: adjusted_utc,
-                            local_before,
-                            deviation_ms,
-                            corrected: false,
-                            method: "disabled".to_string(),
-                        });
                     }
-                    SyncMode::Immediate => set_system_time_direct(adjusted_utc)?,
-                    SyncMode::Slew => slew_system_time(adjusted_utc)?,
+                } else {
+                    let method = match config.sync_mode {
+                        SyncMode::Off => "disabled".to_string(),
+                        SyncMode::Immediate => set_system_time_direct(adjusted_utc)?,
+                        SyncMode::Slew => slew_system_time(adjusted_utc)?,
+                    };
+
+                    SyncReport {
+                        server: host.name,
+                        request_type: host.request_type,
+                        remote_utc,
+                        applied_utc: adjusted_utc,
+                        local_before,
+                        deviation_ms,
+                        method,
+                    }
                 };
 
-                return Ok(SyncReport {
-                    server: host.name,
-                    request_type: host.request_type,
-                    remote_utc,
-                    applied_utc: adjusted_utc,
-                    local_before,
-                    deviation_ms,
-                    corrected: true,
-                    method,
+                return Ok(SyncResult {
+                    report: Some(report),
+                    failed_attempts,
                 });
             }
             Err(err) => {
-                errors.push(format!("{}: {err}", host.name));
+                failed_attempts.push(HostAttempt {
+                    host: host.name.clone(),
+                    error: err.to_string(),
+                });
             }
         }
     }
 
-    let config_note = format!(
-        "config={}, hosts={}",
-        config_path.display(),
-        config.hosts.len()
-    );
-    Err(AppError::msg(format!(
-        "all network time sources failed ({config_note}): {}",
-        errors.join(" | ")
-    )))
+    Ok(SyncResult {
+        report: None,
+        failed_attempts,
+    })
 }
 
 fn fetch_time(config: &AppConfig, client: &Client, host: &HostCandidate) -> Result<DateTime<Utc>> {
@@ -417,7 +418,7 @@ fn request_allowed(config: &AppConfig, request_type: RequestType) -> bool {
     }
 }
 
-fn collect_candidates(config: &AppConfig) -> Vec<HostCandidate> {
+pub(crate) fn collect_candidates(config: &AppConfig) -> Vec<HostCandidate> {
     let mut hosts = Vec::with_capacity(config.hosts.len());
     for (name, host) in &config.hosts {
         if !host.enabled {
