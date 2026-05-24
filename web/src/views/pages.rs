@@ -40,7 +40,7 @@ pub fn OverviewPage() -> impl View {
             div![ServicePanel(), MutationLedger()].class("stack"),
             div![
                 HostListPanel(),
-                RecentLogsPanel().limit(12),
+                RecentLogsPanel(12),
             ].class("stack"),
         ]
         .class("overview-grid"),
@@ -124,7 +124,7 @@ pub fn LogsPage() -> impl View {
                 .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(16))),
         ].style(sty().margin_bottom(px(24))),
         div![
-            RecentLogsPanel().limit(80),
+            RecentLogsPanel(80),
             HostTablePanel(),
         ]
         .class("split"),

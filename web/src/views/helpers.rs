@@ -4,7 +4,7 @@ use silex::prelude::*;
 // --- Styled Components ---
 
 styled! {
-    pub StyledMetricCard<div>(children: Children) {
+    pub StyledMetricCard<div>(children: AnyView) {
         padding: 32px;
         background: $AppTheme::BG_PANEL;
         border: 1px solid $AppTheme::LINE;
@@ -39,7 +39,7 @@ styled! {
 }
 
 styled! {
-    pub StyledPanel<div>(children: Children) {
+    pub StyledPanel<div>(children: AnyView) {
         background: $AppTheme::BG_PANEL;
         border: 1px solid $AppTheme::LINE;
         border-radius: $AppTheme::RADIUS;
@@ -59,7 +59,7 @@ styled! {
 }
 
 styled! {
-    pub StyledKVRow<div>(children: Children) {
+    pub StyledKVRow<div>(children: AnyView) {
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -79,7 +79,7 @@ styled! {
 }
 
 styled! {
-    pub StyledBadge<span>(children: Children) {
+    pub StyledBadge<span>(children: AnyView) {
         display: inline-flex;
         align-items: center;
         padding: 6px 12px;
@@ -97,7 +97,7 @@ styled! {
 
 styled! {
     pub StyledToolButton<button>(
-        children: Children,
+        children: AnyView,
         #[prop(into)] danger: Signal<bool>,
     ) {
         display: inline-flex;
@@ -158,7 +158,7 @@ pub fn kv_row(label: &'static str, value: impl View + 'static) -> impl View {
     ])
 }
 
-pub fn icon_overview() -> SharedView {
+pub fn icon_overview() -> AnyView {
     svg(view_chain![
         rect()
             .attr("width", "7")
@@ -193,20 +193,20 @@ pub fn icon_overview() -> SharedView {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_config() -> SharedView {
+pub fn icon_config() -> AnyView {
     svg(view_chain![
         path().attr("d", "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1-1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"),
         circle().attr("cx", "12").attr("cy", "12").attr("r", "3")
     ])
     .attr("width", "16").attr("height", "16").attr("viewBox", "0 0 24 24").attr("fill", "none")
     .attr("stroke", "currentColor").attr("stroke-width", "2.5").attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_logs() -> SharedView {
+pub fn icon_logs() -> AnyView {
     svg(view_chain![
         path().attr(
             "d",
@@ -224,10 +224,10 @@ pub fn icon_logs() -> SharedView {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_about() -> SharedView {
+pub fn icon_about() -> AnyView {
     svg(view_chain![
         circle().attr("cx", "12").attr("cy", "12").attr("r", "10"),
         path().attr("d", "M12 16v-4"),
@@ -241,10 +241,10 @@ pub fn icon_about() -> SharedView {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_sync() -> SharedView {
+pub fn icon_sync() -> AnyView {
     svg(view_chain![
         path().attr("d", "M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"),
         path().attr("d", "M3 3v5h5"),
@@ -259,10 +259,10 @@ pub fn icon_sync() -> SharedView {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_save() -> SharedView {
+pub fn icon_save() -> AnyView {
     svg(view_chain![
         path().attr("d", "M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"),
         path().attr("d", "M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"),
@@ -270,10 +270,10 @@ pub fn icon_save() -> SharedView {
     ])
     .attr("width", "15").attr("height", "15").attr("viewBox", "0 0 24 24").attr("fill", "none")
     .attr("stroke", "currentColor").attr("stroke-width", "2.5").attr("stroke-linecap", "round").attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_stop() -> SharedView {
+pub fn icon_stop() -> AnyView {
     svg(view_chain![
         circle().attr("cx", "12").attr("cy", "12").attr("r", "10"),
         rect()
@@ -291,10 +291,10 @@ pub fn icon_stop() -> SharedView {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
-pub fn icon_reload() -> SharedView {
+pub fn icon_reload() -> AnyView {
     svg(view_chain![
         path().attr("d", "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"),
         path().attr("d", "M3 3v5h5")
@@ -307,15 +307,15 @@ pub fn icon_reload() -> SharedView {
     .attr("stroke-width", "2.5")
     .attr("stroke-linecap", "round")
     .attr("stroke-linejoin", "round")
-    .into_shared()
+    .into_any()
 }
 
 #[component]
 pub fn ActionStatus(
     label: &'static str,
-    loading: bool,
-    error: Option<String>,
-    value: Option<String>,
+    #[chain(default)] loading: bool,
+    #[chain(default)] error: Option<String>,
+    #[chain(default)] value: Option<String>,
 ) -> impl View {
     let status = if loading {
         "pending".to_string()
@@ -342,7 +342,7 @@ pub fn ActionStatus(
 }
 
 #[component]
-pub fn MetricCard(label: &'static str, value: Children, subtitle: Children) -> impl View {
+pub fn MetricCard(label: &'static str, #[chain(default)] value: AnyView, #[chain(default)] subtitle: AnyView) -> impl View {
     StyledMetricCard(view_chain![
         div(label).style(
             sty()

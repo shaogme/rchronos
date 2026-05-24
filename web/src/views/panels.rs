@@ -15,10 +15,10 @@ pub fn SummaryPanel() -> impl View {
             ),]
             .class("grid metrics"),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => div![
-                MetricCard().label("Status").value(snapshot.status.current_operation.clone()).subtitle(format!("Config: {}", snapshot.config_path)),
-                MetricCard().label("Health").value(format!("{}/{} OK", enabled_hosts(&snapshot.config) - failing_hosts(&snapshot), snapshot.config.hosts.len())).subtitle(format!("Syncing: {}", if snapshot.syncing { "yes" } else { "no" })),
-                MetricCard().label("Enabled hosts").value(format!("{}/{}", enabled_hosts(&snapshot.config), snapshot.config.hosts.len())).subtitle(sync_mode_label(snapshot.config.sync_mode).to_string()),
-                MetricCard().label("Delay").value(TimeSpan().ms(snapshot.config.delay_ms)).subtitle(span!["Timeout: ", TimeSpan().ms(snapshot.config.network_timeout_ms)]),
+                MetricCard("Status").value(snapshot.status.current_operation.clone()).subtitle(format!("Config: {}", snapshot.config_path)),
+                MetricCard("Health").value(format!("{}/{} OK", enabled_hosts(&snapshot.config) - failing_hosts(&snapshot), snapshot.config.hosts.len())).subtitle(format!("Syncing: {}", if snapshot.syncing { "yes" } else { "no" })),
+                MetricCard("Enabled hosts").value(format!("{}/{}", enabled_hosts(&snapshot.config), snapshot.config.hosts.len())).subtitle(sync_mode_label(snapshot.config.sync_mode).to_string()),
+                MetricCard("Delay").value(TimeSpan(snapshot.config.delay_ms)).subtitle(span!["Timeout: ", TimeSpan(snapshot.config.network_timeout_ms)]),
             ]
             .class("grid metrics"),
             ResourceState::Error(err) => div![
@@ -81,15 +81,15 @@ pub fn ServicePanel() -> impl View {
                         kv_row(
                             "Offsets",
                             span![
-                                TimeSpan().ms(snapshot.config.offset_ms),
+                                TimeSpan(snapshot.config.offset_ms),
                                 " / ",
-                                TimeSpan().ms(snapshot.config.deviation_offset_ms)
+                                TimeSpan(snapshot.config.deviation_offset_ms)
                             ],
                         ),
-                        kv_row("Sync interval", TimeSpan().ms(snapshot.config.delay_ms)),
+                        kv_row("Sync interval", TimeSpan(snapshot.config.delay_ms)),
                         kv_row(
                             "Network timeout",
-                            TimeSpan().ms(snapshot.config.network_timeout_ms)
+                            TimeSpan(snapshot.config.network_timeout_ms)
                         ),
                     ]
                     .style(sty().display(DisplayKeyword::Grid).gap(px(14))),
@@ -302,7 +302,7 @@ pub fn SyncTuningPanel() -> impl View {
                     "Agreement mode",
                     agreement_label(snapshot.config.agreement).to_string()
                 ),
-                kv_row("Window", TimeSpan().ms(snapshot.config.timeout_ms)),
+                kv_row("Window", TimeSpan(snapshot.config.timeout_ms)),
                 kv_row(
                     "Win32 time policy",
                     if snapshot.config.disable_win32_time {
@@ -581,11 +581,11 @@ pub fn MutationLedger() -> impl View {
     div![
         StyledPanel(div![
             h3("Command state").style(sty().margin(px(0))),
-            ActionStatus().label("Sync").loading(ctx.sync.loading()).error(ctx.sync.error().map(|e| format!("{:?}", e))).value(ctx.sync.value()),
-            ActionStatus().label("Reload").loading(ctx.reload.loading()).error(ctx.reload.error().map(|e| format!("{:?}", e))).value(ctx.reload.value()),
-            ActionStatus().label("Save").loading(ctx.save.loading()).error(ctx.save.error().map(|e| format!("{:?}", e))).value(ctx.save.value()),
-            ActionStatus().label("Apply draft").loading(ctx.apply_config.loading()).error(ctx.apply_config.error().map(|e| format!("{:?}", e))).value(ctx.apply_config.value()),
-            ActionStatus().label("Stop").loading(ctx.stop.loading()).error(ctx.stop.error().map(|e| format!("{:?}", e))).value(ctx.stop.value()),
+            ActionStatus("Sync").loading(ctx.sync.loading()).error(ctx.sync.error().map(|e| format!("{:?}", e))).value(ctx.sync.value()),
+            ActionStatus("Reload").loading(ctx.reload.loading()).error(ctx.reload.error().map(|e| format!("{:?}", e))).value(ctx.reload.value()),
+            ActionStatus("Save").loading(ctx.save.loading()).error(ctx.save.error().map(|e| format!("{:?}", e))).value(ctx.save.value()),
+            ActionStatus("Apply draft").loading(ctx.apply_config.loading()).error(ctx.apply_config.error().map(|e| format!("{:?}", e))).value(ctx.apply_config.value()),
+            ActionStatus("Stop").loading(ctx.stop.loading()).error(ctx.stop.error().map(|e| format!("{:?}", e))).value(ctx.stop.value()),
         ].style(sty().display(DisplayKeyword::Flex).flex_direction(FlexDirectionKeyword::Column).gap(px(16)))),
         StyledPanel(div![
             h3("Notes").style(sty().margin(px(0))),

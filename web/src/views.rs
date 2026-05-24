@@ -28,10 +28,10 @@ pub fn Sidebar() -> impl View {
 
     div![
         div![
-            Link(AppRoute::Overview, span![icon_overview(), "Overview"]).active_class("active"),
-            Link(AppRoute::Config, span![icon_config(), "Config"]).active_class("active"),
-            Link(AppRoute::Logs, span![icon_logs(), "Logs"]).active_class("active"),
-            Link(AppRoute::About, span![icon_about(), "About"]).active_class("active"),
+            Link(AppRoute::Overview).children(span![icon_overview(), "Overview"]).active_class("active"),
+            Link(AppRoute::Config).children(span![icon_config(), "Config"]).active_class("active"),
+            Link(AppRoute::Logs).children(span![icon_logs(), "Logs"]).active_class("active"),
+            Link(AppRoute::About).children(span![icon_about(), "About"]).active_class("active"),
         ]
         .class("nav"),
         div![

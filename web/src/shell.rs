@@ -447,7 +447,7 @@ pub fn AppShell() -> impl View {
             .class("hero"),
             div![
                 Sidebar(),
-                Router::new().match_route::<AppRoute>(),
+                Router().match_route::<AppRoute>(),
             ]
             .class("layout"),
         ]
