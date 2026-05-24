@@ -20,11 +20,6 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 use tracing::{error, info, warn};
-use windows::Win32::System::EventLog::{
-    DeregisterEventSource, EVENTLOG_ERROR_TYPE, REPORT_EVENT_TYPE, RegisterEventSourceW,
-    ReportEventW,
-};
-use windows::core::w;
 
 use rchronos_shared::{HostStatus, RuntimeSnapshot, RuntimeStatus};
 
@@ -47,17 +42,8 @@ use windows_service::{
 
 pub const SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 
-fn report_event_log(level: REPORT_EVENT_TYPE, message: &str) {
-    unsafe {
-        let source = w!("rchronos");
-        if let Ok(handle) = RegisterEventSourceW(None, source) {
-            let message_wide: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
-            let pcwstr = windows::core::PCWSTR(message_wide.as_ptr());
-            let strings = [pcwstr];
-            let _ = ReportEventW(handle, level, 0, 1, None, 0, Some(&strings), None);
-            let _ = DeregisterEventSource(handle);
-        }
-    }
+fn report_event_log(level: rchronos_windows::EventLogLevel, message: &str) {
+    let _ = rchronos_windows::report_event_log(level, message);
 }
 
 fn setup_logging() -> (tracing_appender::non_blocking::WorkerGuard, PathBuf) {
@@ -133,9 +119,8 @@ pub enum AppError {
     TomlSer(#[from] toml::ser::Error),
     #[error(transparent)]
     TomlDe(#[from] toml::de::Error),
-    #[cfg(windows)]
     #[error(transparent)]
-    Windows(#[from] windows::core::Error),
+    Windows(#[from] rchronos_windows::Error),
     #[cfg(windows)]
     #[error(transparent)]
     Service(#[from] windows_service::Error),
@@ -299,7 +284,7 @@ fn service_main(_arguments: Vec<OsString>) {
     if let Err(err) = run_windows_service() {
         let msg = format!("windows service error: {err}");
         error!("{}", msg);
-        report_event_log(EVENTLOG_ERROR_TYPE, &msg);
+        report_event_log(rchronos_windows::EventLogLevel::Error, &msg);
     }
 }
 
@@ -310,7 +295,7 @@ fn main() -> windows_service::Result<()> {
 
     if let Err(e) = service_dispatcher::start(service_name, ffi_service_main) {
         report_event_log(
-            EVENTLOG_ERROR_TYPE,
+            rchronos_windows::EventLogLevel::Error,
             &format!("Failed to start service dispatcher: {e}"),
         );
         return Err(e);

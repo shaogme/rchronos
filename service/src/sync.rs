@@ -1,41 +1,18 @@
 use std::{
     net::UdpSocket,
     path::Path,
-    sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
 
 use crate::config::AppConfig;
 use crate::{AppError, Result};
-use chrono::{DateTime, Datelike, Local, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use httpdate::parse_http_date;
 use rchronos_shared::{Agreement, RequestType, SyncMode};
 use reqwest::blocking::Client;
 
-use windows::Win32::{
-    Foundation::{CloseHandle, HANDLE, LUID, SYSTEMTIME},
-    Security::{
-        AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
-        TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
-    },
-    System::{
-        Registry::{
-            HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RegCloseKey, RegOpenKeyExW,
-            RegSetValueExW,
-        },
-        SystemInformation::{
-            GetSystemTimeAdjustment, GetSystemTimeAdjustmentPrecise, SetSystemTime,
-            SetSystemTimeAdjustment, SetSystemTimeAdjustmentPrecise,
-        },
-        Threading::{GetCurrentProcess, OpenProcessToken},
-    },
-};
-use windows::core::w;
-
 pub const NTP_PORT: u16 = 123;
 pub const NTP_EPOCH_UNIX_OFFSET: i64 = 2_208_988_800;
-
-static SYSTEM_TIME_PRIVILEGE_GRANTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct HostCandidate {
@@ -85,7 +62,7 @@ impl std::fmt::Display for SyncTrigger {
 }
 
 pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResult> {
-    let _ = apply_windows_time_policy(config.disable_win32_time);
+    let _ = rchronos_windows::apply_windows_time_policy(config.disable_win32_time);
 
     let client = Client::builder()
         .timeout(Duration::from_millis(config.network_timeout_ms.max(1)))
@@ -119,8 +96,16 @@ pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResul
                 } else {
                     let method = match config.sync_mode {
                         SyncMode::Off => "disabled".to_string(),
-                        SyncMode::Immediate => set_system_time_direct(adjusted_utc)?,
-                        SyncMode::Slew => slew_system_time(adjusted_utc)?,
+                        SyncMode::Immediate => {
+                            rchronos_windows::set_system_time_direct(adjusted_utc)
+                                .map_err(|e| AppError::msg(e.to_string()))?;
+                            "direct".to_string()
+                        }
+                        SyncMode::Slew => {
+                            rchronos_windows::slew_system_time(adjusted_utc)
+                                .map_err(|e| AppError::msg(e.to_string()))?
+                                .to_string()
+                        }
                     };
 
                     SyncReport {
@@ -253,159 +238,6 @@ fn fetch_http_time(
     )
     .map_err(|e| AppError::msg(format!("parse Date header: {e}")))?;
     Ok(DateTime::<Utc>::from(date))
-}
-
-fn ensure_system_time_privilege() -> Result<()> {
-    if SYSTEM_TIME_PRIVILEGE_GRANTED.load(Ordering::Relaxed) {
-        return Ok(());
-    }
-
-    unsafe {
-        let mut token = HANDLE::default();
-        OpenProcessToken(
-            GetCurrentProcess(),
-            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-            &mut token,
-        )?;
-
-        let mut luid = LUID::default();
-        LookupPrivilegeValueW(None, w!("SeSystemtimePrivilege"), &mut luid)?;
-
-        let token_privileges = TOKEN_PRIVILEGES {
-            PrivilegeCount: 1,
-            Privileges: [LUID_AND_ATTRIBUTES {
-                Luid: luid,
-                Attributes: SE_PRIVILEGE_ENABLED,
-            }],
-        };
-
-        AdjustTokenPrivileges(token, false, Some(&token_privileges), 0, None, None)?;
-        CloseHandle(token)?;
-    }
-
-    SYSTEM_TIME_PRIVILEGE_GRANTED.store(true, Ordering::Relaxed);
-    Ok(())
-}
-
-fn set_system_time_direct(time: DateTime<Utc>) -> Result<String> {
-    ensure_system_time_privilege()?;
-    unsafe {
-        let system_time = utc_to_system_time(time);
-        SetSystemTime(&system_time)?;
-    }
-    Ok("direct".to_string())
-}
-
-fn slew_system_time(target: DateTime<Utc>) -> Result<String> {
-    ensure_system_time_privilege()?;
-    unsafe {
-        let mut p_adj = 0u64;
-        let mut p_inc = 0u64;
-        let mut p_dis = windows::core::BOOL(0);
-
-        // Try Precise API first (Windows 10 2004+)
-        if GetSystemTimeAdjustmentPrecise(&mut p_adj, &mut p_inc, &mut p_dis).is_ok() {
-            let now = Utc::now();
-            let diff_ms = (target - now).num_milliseconds();
-            if diff_ms.abs() < 2 {
-                return Ok("slew-skipped-small".to_string());
-            }
-
-            let slew_rate = 0.1;
-            let increment = p_inc as f64;
-            let adj_delta = increment * slew_rate;
-            let new_adj = if diff_ms > 0 {
-                increment + adj_delta
-            } else {
-                increment - adj_delta
-            };
-
-            let distance_100ns = diff_ms.abs() as f64 * 10000.0;
-            let interrupts_needed = distance_100ns / adj_delta;
-            let seconds_to_wait = (interrupts_needed * increment) / 10_000_000.0;
-
-            SetSystemTimeAdjustmentPrecise(new_adj.round() as u64, false)?;
-            wait_for_slew(seconds_to_wait);
-            SetSystemTimeAdjustmentPrecise(0, true)?;
-
-            return Ok("slew-precise".to_string());
-        }
-
-        // Fallback to Legacy API
-        let mut l_adj = 0u32;
-        let mut l_inc = 0u32;
-        let mut l_dis = windows::core::BOOL(0);
-        GetSystemTimeAdjustment(&mut l_adj, &mut l_inc, &mut l_dis)?;
-
-        let now = Utc::now();
-        let diff_ms = (target - now).num_milliseconds();
-        if diff_ms.abs() < 2 {
-            return Ok("slew-skipped-small".to_string());
-        }
-
-        let slew_rate = 0.1;
-        let increment = l_inc as f64;
-        let adj_delta = increment * slew_rate;
-        let new_adj = if diff_ms > 0 {
-            increment + adj_delta
-        } else {
-            increment - adj_delta
-        };
-
-        let distance_100ns = diff_ms.abs() as f64 * 10000.0;
-        let interrupts_needed = distance_100ns / adj_delta;
-        let seconds_to_wait = (interrupts_needed * increment) / 10_000_000.0;
-
-        SetSystemTimeAdjustment(new_adj.round() as u32, false)?;
-        wait_for_slew(seconds_to_wait);
-        SetSystemTimeAdjustment(0, true)?;
-
-        Ok("slew-legacy".to_string())
-    }
-}
-
-fn wait_for_slew(seconds: f64) {
-    let mut remaining = Duration::from_secs_f64(seconds);
-    while remaining > Duration::from_millis(1) {
-        let chunk = remaining.min(Duration::from_millis(500));
-        std::thread::sleep(chunk);
-        remaining = remaining.saturating_sub(chunk);
-    }
-}
-
-fn utc_to_system_time(time: DateTime<Utc>) -> SYSTEMTIME {
-    SYSTEMTIME {
-        wYear: time.year() as u16,
-        wMonth: time.month() as u16,
-        wDayOfWeek: time.weekday().num_days_from_sunday() as u16,
-        wDay: time.day() as u16,
-        wHour: time.hour() as u16,
-        wMinute: time.minute() as u16,
-        wSecond: time.second() as u16,
-        wMilliseconds: time.timestamp_subsec_millis() as u16,
-    }
-}
-
-pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
-    unsafe {
-        let mut key = Default::default();
-        RegOpenKeyExW(
-            HKEY_LOCAL_MACHINE,
-            w!("SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters"),
-            None,
-            KEY_SET_VALUE | KEY_QUERY_VALUE,
-            &mut key,
-        )
-        .ok()?;
-
-        let value = if disable_win32_time { "NoSync" } else { "NTP" };
-        let data: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
-        let bytes = std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2);
-
-        RegSetValueExW(key, w!("Type"), None, REG_SZ, Some(bytes)).ok()?;
-        let _ = RegCloseKey(key);
-    }
-    Ok(())
 }
 
 fn request_allowed(config: &AppConfig, request_type: RequestType) -> bool {

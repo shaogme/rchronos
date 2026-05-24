@@ -1274,6 +1274,7 @@ dependencies = [
  "httpdate",
  "mime_guess",
  "rchronos-shared",
+ "rchronos-windows",
  "reqwest",
  "rust-embed",
  "serde",
@@ -1284,7 +1285,6 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "windows",
  "windows-service",
 ]
 
@@ -1293,6 +1293,16 @@ name = "rchronos-shared"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "rchronos-windows"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "thiserror 2.0.18",
+ "tracing",
+ "windows",
 ]
 
 [[package]]
