@@ -12,8 +12,7 @@ use mime_guess::from_path;
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 
-use crate::AppRuntime;
-use crate::config::AppConfig;
+use crate::actor::AppRuntime;
 use crate::sync::SyncTrigger;
 
 #[derive(RustEmbed)]
@@ -40,12 +39,34 @@ pub fn build_router(app: Arc<AppRuntime>) -> Router {
         .with_state(app)
 }
 
-async fn api_state(State(app): State<Arc<AppRuntime>>) -> Json<crate::RuntimeSnapshot> {
-    Json(app.snapshot().await)
+async fn api_state(State(app): State<Arc<AppRuntime>>) -> Response {
+    match serde_json::to_vec(&*app.snapshot()) {
+        Ok(bytes) => (
+            [(header::CONTENT_TYPE, "application/json")],
+            bytes,
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            err.to_string(),
+        )
+            .into_response(),
+    }
 }
 
-async fn api_config(State(app): State<Arc<AppRuntime>>) -> Json<AppConfig> {
-    Json(app.snapshot().await.config)
+async fn api_config(State(app): State<Arc<AppRuntime>>) -> Response {
+    match serde_json::to_vec(&app.snapshot().config) {
+        Ok(bytes) => (
+            [(header::CONTENT_TYPE, "application/json")],
+            bytes,
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            err.to_string(),
+        )
+            .into_response(),
+    }
 }
 
 async fn api_sync(State(app): State<Arc<AppRuntime>>) -> ApiResult {

@@ -7,7 +7,6 @@ use crate::config::AppConfig;
 use crate::{AppError, Result};
 use chrono::{DateTime, Local, Utc};
 use rchronos_shared::{Agreement, RequestType, SyncMode};
-use reqwest::blocking::Client;
 
 mod fetch;
 
@@ -58,10 +57,10 @@ impl std::fmt::Display for SyncTrigger {
     }
 }
 
-pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResult> {
+pub async fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResult> {
     let _ = rchronos_windows::apply_windows_time_policy(config.disable_win32_time);
 
-    let client = Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(Duration::from_millis(config.network_timeout_ms.max(1)))
         .build()
         .map_err(|e| AppError::msg(format!("build HTTP client: {e}")))?;
@@ -72,7 +71,7 @@ pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResul
             continue;
         }
 
-        match fetch::fetch_time(config, &client, &host) {
+        match fetch::fetch_time(config, &client, &host).await {
             Ok(remote_utc) => {
                 let local_before = Local::now();
                 let adjusted_utc =

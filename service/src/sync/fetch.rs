@@ -1,14 +1,10 @@
-use std::{
-    net::UdpSocket,
-    time::Duration,
-};
+use std::time::Duration;
 
 use crate::config::AppConfig;
 use crate::{AppError, Result};
 use chrono::{DateTime, TimeZone, Utc};
 use httpdate::parse_http_date;
 use rchronos_shared::RequestType;
-use reqwest::blocking::Client;
 
 use super::HostCandidate;
 
@@ -125,52 +121,53 @@ impl NtpPacket {
 
 /// The core entry point for fetching remote network time.
 /// Private to parent module `sync.rs`.
-pub(crate) fn fetch_time(
+pub(crate) async fn fetch_time(
     config: &AppConfig,
-    client: &Client,
+    client: &reqwest::Client,
     host: &HostCandidate,
 ) -> Result<DateTime<Utc>> {
     match host.request_type {
-        RequestType::Ntp => fetch_ntp_time(host.name.as_str(), config.network_timeout_ms),
+        RequestType::Ntp => fetch_ntp_time(host.name.as_str(), config.network_timeout_ms).await,
         RequestType::Http => fetch_http_time(
             client,
             "http",
             config.user_agent.as_str(),
             host.name.as_str(),
-        ),
+        ).await,
         RequestType::Https => fetch_http_time(
             client,
             "https",
             config.user_agent.as_str(),
             host.name.as_str(),
-        ),
+        ).await,
     }
 }
 
 /// Fetch network time via UDP NTP protocol.
-fn fetch_ntp_time(host: &str, timeout_ms: u64) -> Result<DateTime<Utc>> {
+async fn fetch_ntp_time(host: &str, timeout_ms: u64) -> Result<DateTime<Utc>> {
     let address = format!("{host}:{NTP_PORT}");
-    let socket = UdpSocket::bind("0.0.0.0:0")
+    let socket = tokio::net::UdpSocket::bind("0.0.0.0:0")
+        .await
         .map_err(|e| AppError::msg(format!("bind UDP socket: {e}")))?;
     let timeout = Duration::from_millis(timeout_ms.max(1));
-    socket
-        .set_read_timeout(Some(timeout))
-        .map_err(|e| AppError::msg(format!("set UDP read timeout: {e}")))?;
-    socket
-        .set_write_timeout(Some(timeout))
-        .map_err(|e| AppError::msg(format!("set UDP write timeout: {e}")))?;
 
     let request = NtpPacket::new_client_request(Utc::now());
     let request_bytes = request.to_bytes();
 
-    socket
-        .send_to(&request_bytes, &address)
+    tokio::time::timeout(timeout, socket.send_to(&request_bytes, &address))
+        .await
+        .map_err(|_| AppError::msg("send NTP packet timeout"))?
         .map_err(|e| AppError::msg(format!("send NTP packet to {address}: {e}")))?;
 
     let mut response_bytes = [0_u8; 48];
-    socket
-        .recv_from(&mut response_bytes)
+    let (received_bytes, _) = tokio::time::timeout(timeout, socket.recv_from(&mut response_bytes))
+        .await
+        .map_err(|_| AppError::msg("receive NTP packet timeout"))?
         .map_err(|e| AppError::msg(format!("receive NTP packet from {address}: {e}")))?;
+
+    if received_bytes < 48 {
+        return Err(AppError::msg(format!("invalid NTP response length: {received_bytes}, expected at least 48 bytes")));
+    }
 
     let response = NtpPacket::from_bytes(&response_bytes)?;
     
@@ -186,8 +183,8 @@ fn fetch_ntp_time(host: &str, timeout_ms: u64) -> Result<DateTime<Utc>> {
 }
 
 /// Fetch network time via HTTP/HTTPS protocols.
-fn fetch_http_time(
-    client: &Client,
+async fn fetch_http_time(
+    client: &reqwest::Client,
     scheme: &str,
     user_agent: &str,
     host: &str,
@@ -202,6 +199,7 @@ fn fetch_http_time(
         .head(&url)
         .header(reqwest::header::USER_AGENT, user_agent)
         .send()
+        .await
         .map_err(|e| AppError::msg(format!("HEAD {url}: {e}")))?
         .error_for_status()
         .map_err(|e| AppError::msg(format!("HTTP status for {url}: {e}")))?;
@@ -294,10 +292,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_fetch_time_allowed_types() {
+    #[tokio::test]
+    async fn test_fetch_time_allowed_types() {
         // Test config structures or mock scenarios
-        let client = Client::builder().build().unwrap();
+        let client = reqwest::Client::builder().build().unwrap();
         
         // NTP server that is fast and reliable for offline detection check
         let host_candidate_invalid = HostCandidate {
@@ -312,13 +310,13 @@ mod tests {
         };
 
         // Should return a standard connection error gracefully rather than panicking
-        let result = fetch_time(&config, &client, &host_candidate_invalid);
+        let result = fetch_time(&config, &client, &host_candidate_invalid).await;
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_fetch_time_ntp_real() {
-        let client = Client::builder().build().unwrap();
+    #[tokio::test]
+    async fn test_fetch_time_ntp_real() {
+        let client = reqwest::Client::builder().build().unwrap();
         let host = HostCandidate {
             name: "ntp.aliyun.com".to_string(),
             request_type: RequestType::Ntp,
@@ -329,7 +327,7 @@ mod tests {
             ..Default::default()
         };
 
-        match fetch_time(&config, &client, &host) {
+        match fetch_time(&config, &client, &host).await {
             Ok(time) => {
                 let now = Utc::now();
                 let diff_secs = (time - now).num_seconds().abs();
@@ -346,9 +344,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_fetch_time_http_real() {
-        let client = Client::builder()
+    #[tokio::test]
+    async fn test_fetch_time_http_real() {
+        let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
             .unwrap();
@@ -362,7 +360,7 @@ mod tests {
             ..Default::default()
         };
 
-        match fetch_time(&config, &client, &host) {
+        match fetch_time(&config, &client, &host).await {
             Ok(time) => {
                 let now = Utc::now();
                 let diff_secs = (time - now).num_seconds().abs();
@@ -379,9 +377,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_fetch_time_https_real() {
-        let client = Client::builder()
+    #[tokio::test]
+    async fn test_fetch_time_https_real() {
+        let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
             .unwrap();
@@ -395,7 +393,7 @@ mod tests {
             ..Default::default()
         };
 
-        match fetch_time(&config, &client, &host) {
+        match fetch_time(&config, &client, &host).await {
             Ok(time) => {
                 let now = Utc::now();
                 let diff_secs = (time - now).num_seconds().abs();
