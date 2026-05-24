@@ -41,31 +41,15 @@ pub fn build_router(app: Arc<AppRuntime>) -> Router {
 
 async fn api_state(State(app): State<Arc<AppRuntime>>) -> Response {
     match serde_json::to_vec(&*app.snapshot()) {
-        Ok(bytes) => (
-            [(header::CONTENT_TYPE, "application/json")],
-            bytes,
-        )
-            .into_response(),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            err.to_string(),
-        )
-            .into_response(),
+        Ok(bytes) => ([(header::CONTENT_TYPE, "application/json")], bytes).into_response(),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
 
 async fn api_config(State(app): State<Arc<AppRuntime>>) -> Response {
     match serde_json::to_vec(&app.snapshot().config) {
-        Ok(bytes) => (
-            [(header::CONTENT_TYPE, "application/json")],
-            bytes,
-        )
-            .into_response(),
-        Err(err) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            err.to_string(),
-        )
-            .into_response(),
+        Ok(bytes) => ([(header::CONTENT_TYPE, "application/json")], bytes).into_response(),
+        Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
 

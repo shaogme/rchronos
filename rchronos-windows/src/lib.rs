@@ -1,10 +1,10 @@
-pub mod time;
-pub mod registry;
 pub mod event_log;
+pub mod registry;
+pub mod time;
 
-pub use time::{set_system_time_direct, slew_system_time};
+pub use event_log::{EventLogLevel, report_event_log};
 pub use registry::{apply_windows_time_policy, query_windows_time_policy};
-pub use event_log::{report_event_log, EventLogLevel};
+pub use time::{set_system_time_direct, slew_system_time};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -23,7 +23,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Utc, Timelike};
+    use chrono::{Timelike, Utc};
 
     fn run_elevated_if_needed(test_name: &str) -> bool {
         // 我们实际上可以更简便地通过一次无副作用的操作进行探测：
@@ -68,7 +68,8 @@ mod tests {
         fn drop(&mut self) {
             let elapsed = self.start_instant.elapsed();
             // 补偿测试所耗费的时间，从而极高精度地恢复系统真实时间
-            let restore_time = self.before_time + chrono::Duration::milliseconds(elapsed.as_millis() as i64);
+            let restore_time =
+                self.before_time + chrono::Duration::milliseconds(elapsed.as_millis() as i64);
             let res = set_system_time_direct(restore_time);
             if let Err(e) = res {
                 eprintln!("警告：TimeRestoreGuard 还原系统时间失败: {:?}", e);
@@ -90,7 +91,10 @@ mod tests {
             if let Err(e) = res {
                 eprintln!("警告：RegistryRestoreGuard 恢复注册表失败: {:?}", e);
             } else {
-                println!("RegistryRestoreGuard 成功将注册表还原为原始值 '{}'。", self.original_value);
+                println!(
+                    "RegistryRestoreGuard 成功将注册表还原为原始值 '{}'。",
+                    self.original_value
+                );
             }
         }
     }
@@ -100,8 +104,11 @@ mod tests {
         use chrono::TimeZone;
 
         // 测试普通时间
-        let t1 = Utc.with_ymd_and_hms(2026, 5, 24, 22, 10, 15).unwrap()
-            .with_nanosecond(123_000_000).unwrap();
+        let t1 = Utc
+            .with_ymd_and_hms(2026, 5, 24, 22, 10, 15)
+            .unwrap()
+            .with_nanosecond(123_000_000)
+            .unwrap();
         let st1 = time::utc_to_system_time(t1);
         assert_eq!(st1.wYear, 2026);
         assert_eq!(st1.wMonth, 5);
@@ -121,8 +128,11 @@ mod tests {
         assert_eq!(st2.wDayOfWeek, 4); // 2024-02-29 是星期四 (4)
 
         // 测试跨年边界 (2026-12-31T23:59:59.999Z)
-        let t3 = Utc.with_ymd_and_hms(2026, 12, 31, 23, 59, 59).unwrap()
-            .with_nanosecond(999_000_000).unwrap();
+        let t3 = Utc
+            .with_ymd_and_hms(2026, 12, 31, 23, 59, 59)
+            .unwrap()
+            .with_nanosecond(999_000_000)
+            .unwrap();
         let st3 = time::utc_to_system_time(t3);
         assert_eq!(st3.wYear, 2026);
         assert_eq!(st3.wMonth, 12);
@@ -155,7 +165,7 @@ mod tests {
         // 获取刚刚修改后的系统时间并断言
         let after_time = Utc::now();
         let diff = (after_time - target_time).num_milliseconds().abs();
-        
+
         // 校验实际系统时间与我们期望的时间误差在 500ms 内，说明真实修改生效了
         assert!(
             diff < 500,
@@ -185,7 +195,7 @@ mod tests {
         // 制造一个大于 2ms 且足够让 slew 运行的偏差（例如 10 毫秒）
         let target_time = Utc::now() + chrono::Duration::milliseconds(10);
         let res = slew_system_time(target_time);
-        
+
         assert!(res.is_ok(), "微调系统时间应执行成功: {:?}", res);
         let val = res.unwrap();
         // 应成功进入真实的微调逻辑分支，返回值必为 slew-precise 或 slew-legacy 之一
@@ -203,11 +213,8 @@ mod tests {
         }
 
         // 备份当前的注册表 Type 键值
-        let original_value = query_windows_time_policy()
-            .expect("备份原始注册表值应当成功");
-        let _guard = RegistryRestoreGuard {
-            original_value,
-        };
+        let original_value = query_windows_time_policy().expect("备份原始注册表值应当成功");
+        let _guard = RegistryRestoreGuard { original_value };
 
         // 1. 测试应用政策为 true (禁止同步 -> NoSync)
         let res = apply_windows_time_policy(true);
@@ -239,9 +246,17 @@ mod tests {
         ];
 
         for &level in &levels {
-            let msg = format!("[{:?}] Windows Event Log 端到端单元测试 | 唯一标识: {}", level, unique_marker);
+            let msg = format!(
+                "[{:?}] Windows Event Log 端到端单元测试 | 唯一标识: {}",
+                level, unique_marker
+            );
             let res = report_event_log(level, &msg);
-            assert!(res.is_ok(), "特权模式下写入事件日志 {:?} 应成功: {:?}", level, res);
+            assert!(
+                res.is_ok(),
+                "特权模式下写入事件日志 {:?} 应成功: {:?}",
+                level,
+                res
+            );
         }
 
         // 等待一小会以让日志被系统可靠写入并索引

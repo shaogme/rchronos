@@ -40,7 +40,7 @@ impl NtpPacket {
 
         Self {
             li: 0,
-            vn: 3, // NTP Version 3
+            vn: 3,   // NTP Version 3
             mode: 3, // Client Mode
             stratum: 0,
             poll: 0,
@@ -128,18 +128,24 @@ pub(crate) async fn fetch_time(
 ) -> Result<DateTime<Utc>> {
     match host.request_type {
         RequestType::Ntp => fetch_ntp_time(host.name.as_str(), config.network_timeout_ms).await,
-        RequestType::Http => fetch_http_time(
-            client,
-            "http",
-            config.user_agent.as_str(),
-            host.name.as_str(),
-        ).await,
-        RequestType::Https => fetch_http_time(
-            client,
-            "https",
-            config.user_agent.as_str(),
-            host.name.as_str(),
-        ).await,
+        RequestType::Http => {
+            fetch_http_time(
+                client,
+                "http",
+                config.user_agent.as_str(),
+                host.name.as_str(),
+            )
+            .await
+        }
+        RequestType::Https => {
+            fetch_http_time(
+                client,
+                "https",
+                config.user_agent.as_str(),
+                host.name.as_str(),
+            )
+            .await
+        }
     }
 }
 
@@ -166,11 +172,13 @@ async fn fetch_ntp_time(host: &str, timeout_ms: u64) -> Result<DateTime<Utc>> {
         .map_err(|e| AppError::msg(format!("receive NTP packet from {address}: {e}")))?;
 
     if received_bytes < 48 {
-        return Err(AppError::msg(format!("invalid NTP response length: {received_bytes}, expected at least 48 bytes")));
+        return Err(AppError::msg(format!(
+            "invalid NTP response length: {received_bytes}, expected at least 48 bytes"
+        )));
     }
 
     let response = NtpPacket::from_bytes(&response_bytes)?;
-    
+
     // Validate server response mode (should be Server = 4)
     if response.mode != 4 {
         return Err(AppError::msg(format!(
@@ -213,8 +221,8 @@ async fn fetch_http_time(
         .to_str()
         .map_err(|e| AppError::msg(format!("invalid Date header: {e}")))?;
 
-    let date = parse_http_date(date_str)
-        .map_err(|e| AppError::msg(format!("parse Date header: {e}")))?;
+    let date =
+        parse_http_date(date_str).map_err(|e| AppError::msg(format!("parse Date header: {e}")))?;
 
     Ok(DateTime::<Utc>::from(date))
 }
@@ -284,7 +292,10 @@ mod tests {
         let decoded_time = packet.parse_transmit_time().unwrap();
 
         // High-precision fractional seconds: delta must be within 1 microsecond (1000 nanoseconds)
-        let diff_nanos = (original_time - decoded_time).num_nanoseconds().unwrap().abs();
+        let diff_nanos = (original_time - decoded_time)
+            .num_nanoseconds()
+            .unwrap()
+            .abs();
         assert!(
             diff_nanos <= 1000,
             "NTP conversion accuracy lost sub-second precision. Delta: {}ns",
@@ -296,14 +307,14 @@ mod tests {
     async fn test_fetch_time_allowed_types() {
         // Test config structures or mock scenarios
         let client = reqwest::Client::builder().build().unwrap();
-        
+
         // NTP server that is fast and reliable for offline detection check
         let host_candidate_invalid = HostCandidate {
             name: "invalid.hostname.that.does.not.exist.rchronos".to_string(),
             request_type: RequestType::Ntp,
             priority: 0,
         };
-        
+
         let config = AppConfig {
             network_timeout_ms: 100,
             ..Default::default()
@@ -336,7 +347,10 @@ mod tests {
                     "NTP 真实时间与本地时间相差过大，可能本地时钟未同步: {}s",
                     diff_secs
                 );
-                println!("NTP E2E Test Success: Server Time = {}, Local Time = {}", time, now);
+                println!(
+                    "NTP E2E Test Success: Server Time = {}, Local Time = {}",
+                    time, now
+                );
             }
             Err(e) => {
                 println!("Warning: 真实 NTP 端到端测试因网络/超时被跳过: {e}");
@@ -369,7 +383,10 @@ mod tests {
                     "HTTP 真实时间与本地时间相差过大，可能本地时钟未同步: {}s",
                     diff_secs
                 );
-                println!("HTTP E2E Test Success: Server Time = {}, Local Time = {}", time, now);
+                println!(
+                    "HTTP E2E Test Success: Server Time = {}, Local Time = {}",
+                    time, now
+                );
             }
             Err(e) => {
                 println!("Warning: 真实 HTTP 端到端测试因网络/超时被跳过: {e}");
@@ -402,7 +419,10 @@ mod tests {
                     "HTTPS 真实时间与本地时间相差过大，可能本地时钟未同步: {}s",
                     diff_secs
                 );
-                println!("HTTPS E2E Test Success: Server Time = {}, Local Time = {}", time, now);
+                println!(
+                    "HTTPS E2E Test Success: Server Time = {}, Local Time = {}",
+                    time, now
+                );
             }
             Err(e) => {
                 println!("Warning: 真实 HTTPS 端到端测试因网络/超时被跳过: {e}");

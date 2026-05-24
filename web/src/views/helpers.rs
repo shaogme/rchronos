@@ -313,9 +313,9 @@ pub fn icon_reload() -> AnyView {
 #[component]
 pub fn ActionStatus(
     label: &'static str,
-    #[chain(default)] loading: bool,
-    #[chain(default)] error: Option<String>,
-    #[chain(default)] value: Option<String>,
+    #[chain] loading: bool,
+    #[chain] error: Option<String>,
+    #[chain] value: Option<String>,
 ) -> impl View {
     let status = if loading {
         "pending".to_string()
@@ -342,7 +342,11 @@ pub fn ActionStatus(
 }
 
 #[component]
-pub fn MetricCard(label: &'static str, #[chain(default)] value: AnyView, #[chain(default)] subtitle: AnyView) -> impl View {
+pub fn MetricCard(
+    label: &'static str,
+    #[chain] value: AnyView,
+    #[chain] subtitle: AnyView,
+) -> impl View {
     StyledMetricCard(view_chain![
         div(label).style(
             sty()

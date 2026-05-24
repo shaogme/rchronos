@@ -1,14 +1,15 @@
 use crate::Result;
 
 use windows::Win32::System::Registry::{
-    HKEY, HKEY_LOCAL_MACHINE, RegCloseKey, RegOpenKeyExW, RegSetValueExW, RegQueryValueExW, REG_SZ, REG_VALUE_TYPE, KEY_SET_VALUE, KEY_QUERY_VALUE
+    HKEY, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, REG_VALUE_TYPE, RegCloseKey,
+    RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
 };
 use windows::core::PCWSTR;
 
 pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
     let mut key = HKEY::default();
     let sam_desired = KEY_SET_VALUE | KEY_QUERY_VALUE;
-    
+
     let subkey_w: Vec<u16> = "SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters"
         .encode_utf16()
         .chain(std::iter::once(0))
@@ -28,9 +29,8 @@ pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
 
     let value = if disable_win32_time { "NoSync" } else { "NTP" };
     let data_w: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
-    let bytes = unsafe {
-        std::slice::from_raw_parts(data_w.as_ptr() as *const u8, data_w.len() * 2)
-    };
+    let bytes =
+        unsafe { std::slice::from_raw_parts(data_w.as_ptr() as *const u8, data_w.len() * 2) };
 
     let value_name_w: Vec<u16> = "Type".encode_utf16().chain(std::iter::once(0)).collect();
 
@@ -41,7 +41,9 @@ pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
             None,
             REG_SZ,
             Some(bytes),
-        ).ok() {
+        )
+        .ok()
+        {
             let _ = RegCloseKey(key);
             return Err(crate::Error::Registry(format!("RegSetValueExW 失败: {e}")));
         }
@@ -57,7 +59,7 @@ pub fn apply_windows_time_policy(disable_win32_time: bool) -> Result<()> {
 pub fn query_windows_time_policy() -> Result<String> {
     let mut key = HKEY::default();
     let sam_desired = KEY_QUERY_VALUE;
-    
+
     let subkey_w: Vec<u16> = "SYSTEM\\CurrentControlSet\\Services\\W32Time\\Parameters"
         .encode_utf16()
         .chain(std::iter::once(0))
@@ -90,15 +92,18 @@ pub fn query_windows_time_policy() -> Result<String> {
             Some(&mut cb_data),
         );
         let _ = RegCloseKey(key);
-        res.ok().map_err(|e| crate::Error::Registry(format!("RegQueryValueExW 失败: {e}")))?;
+        res.ok()
+            .map_err(|e| crate::Error::Registry(format!("RegQueryValueExW 失败: {e}")))?;
     }
 
     // 转换为 String
-    let wide_slice = unsafe {
-        std::slice::from_raw_parts(buf.as_ptr() as *const u16, (cb_data as usize) / 2)
-    };
+    let wide_slice =
+        unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u16, (cb_data as usize) / 2) };
     // 移除末尾的零
-    let len = wide_slice.iter().position(|&x| x == 0).unwrap_or(wide_slice.len());
+    let len = wide_slice
+        .iter()
+        .position(|&x| x == 0)
+        .unwrap_or(wide_slice.len());
     let value = String::from_utf16(&wide_slice[..len])
         .map_err(|e| crate::Error::Registry(format!("UTF-16 转换失败: {e}")))?;
 

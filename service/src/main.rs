@@ -1,8 +1,8 @@
 #[cfg(not(windows))]
 compile_error!("rchronos only supports Windows service builds.");
 
-mod config;
 mod actor;
+mod config;
 mod sync;
 mod web;
 mod windows_service;

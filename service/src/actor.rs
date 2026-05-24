@@ -9,15 +9,13 @@ use std::{
 };
 
 use chrono::Local;
-use tokio::sync::{mpsc, oneshot, watch, Notify};
+use tokio::sync::{Notify, mpsc, oneshot, watch};
 use tracing::{error, info, warn};
 
-use rchronos_shared::{AppConfig, HostStatus, RuntimeSnapshot, RuntimeStatus};
 use crate::config::AppConfigExt;
-use crate::sync::{
-    SyncResult, SyncTrigger, collect_candidates, perform_sync, request_mode_name,
-};
+use crate::sync::{SyncResult, SyncTrigger, collect_candidates, perform_sync, request_mode_name};
 use crate::{AppError, Result};
+use rchronos_shared::{AppConfig, HostStatus, RuntimeSnapshot, RuntimeStatus};
 
 #[derive(Debug)]
 pub enum AppMessage {
@@ -181,9 +179,7 @@ impl AppActor {
                         tokio::spawn(async move {
                             // 这里暂时用异步 perform_sync，后文会将 perform_sync 异步化
                             let result = perform_sync(&config, &config_path).await;
-                            let _ = tx
-                                .send(AppMessage::SyncFinished(result, trigger))
-                                .await;
+                            let _ = tx.send(AppMessage::SyncFinished(result, trigger)).await;
                         });
                     }
                     if self.state.logs.len() > self.state.config.max_log_lines {

@@ -1,7 +1,4 @@
-use std::{
-    path::Path,
-    time::Duration,
-};
+use std::{path::Path, time::Duration};
 
 use crate::config::AppConfig;
 use crate::{AppError, Result};
@@ -97,11 +94,9 @@ pub async fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<Syn
                                 .map_err(|e| AppError::msg(e.to_string()))?;
                             "direct".to_string()
                         }
-                        SyncMode::Slew => {
-                            rchronos_windows::slew_system_time(adjusted_utc)
-                                .map_err(|e| AppError::msg(e.to_string()))?
-                                .to_string()
-                        }
+                        SyncMode::Slew => rchronos_windows::slew_system_time(adjusted_utc)
+                            .map_err(|e| AppError::msg(e.to_string()))?
+                            .to_string(),
                     };
 
                     SyncReport {

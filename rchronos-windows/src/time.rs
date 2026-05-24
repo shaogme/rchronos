@@ -1,7 +1,7 @@
+use crate::Result;
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use chrono::{DateTime, Utc, Datelike, Timelike};
-use crate::Result;
 
 thread_local! {
     static SYSTEM_TIME_PRIVILEGE_GRANTED: AtomicBool = const { AtomicBool::new(false) };
@@ -10,7 +10,7 @@ thread_local! {
 use windows::Win32::{
     Foundation::{CloseHandle, HANDLE, LUID, SYSTEMTIME},
     Security::{
-        AdjustTokenPrivileges, LookupPrivilegeValueW, LUID_AND_ATTRIBUTES, SE_PRIVILEGE_ENABLED,
+        AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED,
         TOKEN_PRIVILEGES,
     },
     System::{
@@ -32,14 +32,17 @@ fn ensure_system_time_privilege() -> Result<()> {
     unsafe {
         let process = GetCurrentProcess();
         let mut token_handle = HANDLE::default();
-        
+
         // TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY = 0x0020 | 0x0008 = 0x0028
         let desired_access = windows::Win32::Security::TOKEN_ACCESS_MASK(0x0020 | 0x0008);
         OpenProcessToken(process, desired_access, &mut token_handle)
             .map_err(|e| crate::Error::Driver(format!("OpenProcessToken 失败: {e}")))?;
 
         let mut luid = LUID::default();
-        let name_w: Vec<u16> = "SeSystemtimePrivilege".encode_utf16().chain(std::iter::once(0)).collect();
+        let name_w: Vec<u16> = "SeSystemtimePrivilege"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
         LookupPrivilegeValueW(None, PCWSTR(name_w.as_ptr()), &mut luid)
             .map_err(|e| crate::Error::Driver(format!("LookupPrivilegeValue 失败: {e}")))?;
 
@@ -66,8 +69,7 @@ pub fn set_system_time_direct(time: DateTime<Utc>) -> Result<()> {
     ensure_system_time_privilege()?;
     let system_time = utc_to_system_time(time);
     unsafe {
-        SetSystemTime(&system_time)
-            .map_err(|e| crate::Error::Driver(e.to_string()))?;
+        SetSystemTime(&system_time).map_err(|e| crate::Error::Driver(e.to_string()))?;
     }
     Ok(())
 }
@@ -80,9 +82,8 @@ pub fn slew_system_time(target: DateTime<Utc>) -> Result<&'static str> {
     let mut p_dis = BOOL(0);
 
     // 优先尝试精确渐调 API (Windows 10 2004+)
-    let precise_supported = unsafe {
-        GetSystemTimeAdjustmentPrecise(&mut p_adj, &mut p_inc, &mut p_dis).is_ok()
-    };
+    let precise_supported =
+        unsafe { GetSystemTimeAdjustmentPrecise(&mut p_adj, &mut p_inc, &mut p_dis).is_ok() };
 
     if precise_supported {
         let now = Utc::now();
@@ -108,9 +109,9 @@ pub fn slew_system_time(target: DateTime<Utc>) -> Result<&'static str> {
             SetSystemTimeAdjustmentPrecise(new_adj.round() as u64, false)
                 .map_err(|e| crate::Error::Driver(e.to_string()))?;
         }
-        
+
         std::thread::sleep(Duration::from_secs_f64(seconds_to_wait));
-        
+
         unsafe {
             SetSystemTimeAdjustmentPrecise(0, true)
                 .map_err(|e| crate::Error::Driver(e.to_string()))?;
@@ -151,12 +152,11 @@ pub fn slew_system_time(target: DateTime<Utc>) -> Result<&'static str> {
         SetSystemTimeAdjustment(new_adj.round() as u32, false)
             .map_err(|e| crate::Error::Driver(e.to_string()))?;
     }
-    
+
     std::thread::sleep(Duration::from_secs_f64(seconds_to_wait));
-    
+
     unsafe {
-        SetSystemTimeAdjustment(0, true)
-            .map_err(|e| crate::Error::Driver(e.to_string()))?;
+        SetSystemTimeAdjustment(0, true).map_err(|e| crate::Error::Driver(e.to_string()))?;
     }
 
     Ok("slew-legacy")

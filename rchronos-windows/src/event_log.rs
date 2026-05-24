@@ -9,12 +9,15 @@ pub enum EventLogLevel {
 }
 
 use windows::Win32::System::EventLog::{
-    DeregisterEventSource, RegisterEventSourceW, ReportEventW, REPORT_EVENT_TYPE,
+    DeregisterEventSource, REPORT_EVENT_TYPE, RegisterEventSourceW, ReportEventW,
 };
 use windows::core::PCWSTR;
 
 pub fn report_event_log(level: EventLogLevel, message: &str) -> Result<()> {
-    let source_name_w: Vec<u16> = "rchronos".encode_utf16().chain(std::iter::once(0)).collect();
+    let source_name_w: Vec<u16> = "rchronos"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
     let handle = unsafe {
         RegisterEventSourceW(None, PCWSTR(source_name_w.as_ptr()))
             .map_err(|e| crate::Error::Driver(format!("RegisterEventSource 失败: {e}")))?
