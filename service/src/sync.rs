@@ -1,18 +1,15 @@
 use std::{
-    net::UdpSocket,
     path::Path,
     time::Duration,
 };
 
 use crate::config::AppConfig;
 use crate::{AppError, Result};
-use chrono::{DateTime, Local, TimeZone, Utc};
-use httpdate::parse_http_date;
+use chrono::{DateTime, Local, Utc};
 use rchronos_shared::{Agreement, RequestType, SyncMode};
 use reqwest::blocking::Client;
 
-pub const NTP_PORT: u16 = 123;
-pub const NTP_EPOCH_UNIX_OFFSET: i64 = 2_208_988_800;
+mod fetch;
 
 #[derive(Debug, Clone)]
 pub struct HostCandidate {
@@ -75,7 +72,7 @@ pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResul
             continue;
         }
 
-        match fetch_time(config, &client, &host) {
+        match fetch::fetch_time(config, &client, &host) {
             Ok(remote_utc) => {
                 let local_before = Local::now();
                 let adjusted_utc =
@@ -137,107 +134,6 @@ pub fn perform_sync(config: &AppConfig, _config_path: &Path) -> Result<SyncResul
         report: None,
         failed_attempts,
     })
-}
-
-fn fetch_time(config: &AppConfig, client: &Client, host: &HostCandidate) -> Result<DateTime<Utc>> {
-    match host.request_type {
-        RequestType::Ntp => fetch_ntp_time(host.name.as_str(), config.network_timeout_ms),
-        RequestType::Http => fetch_http_time(
-            client,
-            "http",
-            config.user_agent.as_str(),
-            host.name.as_str(),
-        ),
-        RequestType::Https => fetch_http_time(
-            client,
-            "https",
-            config.user_agent.as_str(),
-            host.name.as_str(),
-        ),
-    }
-}
-
-fn fetch_ntp_time(host: &str, timeout_ms: u64) -> Result<DateTime<Utc>> {
-    let address = format!("{host}:{NTP_PORT}");
-    let socket =
-        UdpSocket::bind("0.0.0.0:0").map_err(|e| AppError::msg(format!("bind UDP socket: {e}")))?;
-    let timeout = Duration::from_millis(timeout_ms.max(1));
-    socket
-        .set_read_timeout(Some(timeout))
-        .map_err(|e| AppError::msg(format!("set UDP read timeout: {e}")))?;
-    socket
-        .set_write_timeout(Some(timeout))
-        .map_err(|e| AppError::msg(format!("set UDP write timeout: {e}")))?;
-
-    let mut packet = [0_u8; 48];
-    packet[0] = 0x1B;
-
-    let now = Utc::now();
-    let unix_seconds = now.timestamp() + NTP_EPOCH_UNIX_OFFSET;
-    let nanos = now.timestamp_subsec_nanos() as u64;
-    let fraction = ((nanos << 32) / 1_000_000_000) as u32;
-    let seconds = unix_seconds as u32;
-    packet[40..44].copy_from_slice(&seconds.to_be_bytes());
-    packet[44..48].copy_from_slice(&fraction.to_be_bytes());
-
-    socket
-        .send_to(&packet, &address)
-        .map_err(|e| AppError::msg(format!("send NTP packet to {address}: {e}")))?;
-    let mut response = [0_u8; 48];
-    socket
-        .recv_from(&mut response)
-        .map_err(|e| AppError::msg(format!("receive NTP packet from {address}: {e}")))?;
-
-    let seconds = u32::from_be_bytes(
-        response[40..44]
-            .try_into()
-            .map_err(|_| AppError::msg("decode NTP seconds"))?,
-    ) as i64;
-    let fraction = u32::from_be_bytes(
-        response[44..48]
-            .try_into()
-            .map_err(|_| AppError::msg("decode NTP fraction"))?,
-    ) as i64;
-    let unix_seconds = seconds - NTP_EPOCH_UNIX_OFFSET;
-    let nanos = ((fraction as i128 * 1_000_000_000i128) >> 32) as u32;
-    let remote = Utc
-        .timestamp_opt(unix_seconds, nanos)
-        .single()
-        .ok_or_else(|| AppError::msg("decode NTP time"))?;
-    Ok(remote)
-}
-
-fn fetch_http_time(
-    client: &Client,
-    scheme: &str,
-    user_agent: &str,
-    host: &str,
-) -> Result<DateTime<Utc>> {
-    let url = if host.starts_with("http://") || host.starts_with("https://") {
-        host.to_string()
-    } else {
-        format!("{scheme}://{host}")
-    };
-
-    let response = client
-        .head(&url)
-        .header(reqwest::header::USER_AGENT, user_agent)
-        .send()
-        .map_err(|e| AppError::msg(format!("HEAD {url}: {e}")))?
-        .error_for_status()
-        .map_err(|e| AppError::msg(format!("HTTP status for {url}: {e}")))?;
-
-    let header = response
-        .headers()
-        .get(reqwest::header::DATE)
-        .ok_or_else(|| AppError::msg("missing Date header"))?;
-    let date = parse_http_date(
-        header
-            .to_str()
-            .map_err(|e| AppError::msg(format!("invalid Date header: {e}")))?,
-    )
-    .map_err(|e| AppError::msg(format!("parse Date header: {e}")))?;
-    Ok(DateTime::<Utc>::from(date))
 }
 
 fn request_allowed(config: &AppConfig, request_type: RequestType) -> bool {
