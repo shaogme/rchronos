@@ -2,14 +2,14 @@ use std::{
     collections::BTreeMap,
     path::PathBuf,
     sync::{
-        Arc, RwLock,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
 
 use chrono::Local;
-use tokio::sync::{mpsc, oneshot, Notify};
+use tokio::sync::{mpsc, oneshot, watch, Notify};
 use tracing::{error, info, warn};
 
 use rchronos_shared::{AppConfig, HostStatus, RuntimeSnapshot, RuntimeStatus};
@@ -45,7 +45,7 @@ struct AppActor {
     sender: mpsc::Sender<AppMessage>,
     state: RuntimeState,
     config_path: PathBuf,
-    snapshot_cache: Arc<RwLock<Arc<RuntimeSnapshot>>>,
+    snapshot_sender: watch::Sender<Arc<RuntimeSnapshot>>,
 }
 
 impl AppActor {
@@ -54,7 +54,7 @@ impl AppActor {
         sender: mpsc::Sender<AppMessage>,
         config: AppConfig,
         config_path: PathBuf,
-        snapshot_cache: Arc<RwLock<Arc<RuntimeSnapshot>>>,
+        snapshot_sender: watch::Sender<Arc<RuntimeSnapshot>>,
     ) -> Self {
         let state = RuntimeState {
             config,
@@ -71,7 +71,7 @@ impl AppActor {
             sender,
             state,
             config_path,
-            snapshot_cache,
+            snapshot_sender,
         };
         actor.update_hosts_in_status();
         actor.update_snapshot_cache();
@@ -108,8 +108,7 @@ impl AppActor {
             syncing: self.state.syncing,
             config_path: self.config_path.display().to_string(),
         };
-        let mut cache = self.snapshot_cache.write().unwrap();
-        *cache = Arc::new(snapshot);
+        let _ = self.snapshot_sender.send(Arc::new(snapshot));
     }
 
     async fn run(&mut self) {
@@ -260,7 +259,7 @@ pub struct AppRuntime {
     pub config_path: PathBuf,
     sender: mpsc::Sender<AppMessage>,
     pub shutdown: Notify,
-    snapshot_cache: Arc<RwLock<Arc<RuntimeSnapshot>>>,
+    snapshot_receiver: watch::Receiver<Arc<RuntimeSnapshot>>,
     periodic_started: AtomicBool,
 }
 
@@ -279,17 +278,17 @@ impl AppRuntime {
             config_path: config_path.display().to_string(),
         };
 
-        let snapshot_cache = Arc::new(RwLock::new(Arc::new(initial_snapshot)));
+        let (snapshot_sender, snapshot_receiver) = watch::channel(Arc::new(initial_snapshot));
 
         let runtime = Arc::new(Self {
             config_path: config_path.clone(),
             sender: tx.clone(),
             shutdown: Notify::new(),
-            snapshot_cache: snapshot_cache.clone(),
+            snapshot_receiver,
             periodic_started: AtomicBool::new(false),
         });
 
-        let mut actor = AppActor::new(rx, tx, config, config_path, snapshot_cache);
+        let mut actor = AppActor::new(rx, tx, config, config_path, snapshot_sender);
         tokio::spawn(async move {
             actor.run().await;
         });
@@ -297,10 +296,9 @@ impl AppRuntime {
         runtime
     }
 
-    /// 高性能快照获取接口：原子性返回 Arc 共享快照，实现 O(1) 并发无拷贝读取。
+    /// 高性能快照获取接口：原子性返回 Arc 共享快照，实现 O(1) 并发无锁无拷贝读取。
     pub fn snapshot(&self) -> Arc<RuntimeSnapshot> {
-        let cache = self.snapshot_cache.read().unwrap();
-        cache.clone()
+        self.snapshot_receiver.borrow().clone()
     }
 
     pub async fn log(&self, message: impl Into<String>) {
