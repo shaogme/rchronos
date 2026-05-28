@@ -15,7 +15,14 @@ pub fn OverviewPage() -> impl View {
                     .style(sty().color(AppTheme::MUTED).margin(px(0)).font_size(px(18)).font_weight(500).opacity(0.8)),
             ],
             div![
-                StyledToolButton(view_chain![icon_sync(), "Sync now"])
+                StyledToolButton(view_chain![
+                    icon_sync(),
+                    move || {
+                        ctx.snapshot.get_data()
+                            .map(|s| if s.config.sync_mode == SyncMode::Off { "Start Sync" } else { "Sync now" })
+                            .unwrap_or("Sync now")
+                    }
+                ])
                     .on(event::click, move |_| ctx.sync.mutate(()))
                     .attr("disabled", rx!(@fn ctx.sync.loading()))
                     .danger(false),

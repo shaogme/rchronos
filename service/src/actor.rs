@@ -15,7 +15,7 @@ use tracing::{error, info, warn};
 use crate::config::AppConfigExt;
 use crate::sync::{SyncResult, SyncTrigger, collect_candidates, perform_sync, request_mode_name};
 use crate::{AppError, Result};
-use rchronos_shared::{AppConfig, HostStatus, RuntimeSnapshot, RuntimeStatus};
+use rchronos_shared::{AppConfig, HostStatus, RuntimeSnapshot, RuntimeStatus, SyncMode};
 
 #[derive(Debug)]
 pub enum AppMessage {
@@ -54,11 +54,16 @@ impl AppActor {
         config_path: PathBuf,
         snapshot_sender: watch::Sender<Arc<RuntimeSnapshot>>,
     ) -> Self {
+        let initial_op = if config.sync_mode == SyncMode::Off {
+            "OFF".to_string()
+        } else {
+            "Ready".to_string()
+        };
         let state = RuntimeState {
             config,
             logs: vec![],
             status: RuntimeStatus {
-                current_operation: "Ready".to_string(),
+                current_operation: initial_op,
                 hosts: vec![],
             },
             host_failures: BTreeMap::new(),
@@ -128,6 +133,12 @@ impl AppActor {
                     let res = match AppConfig::load(&self.config_path) {
                         Ok(config) => {
                             self.state.config = config;
+                            self.state.status.current_operation =
+                                if self.state.config.sync_mode == SyncMode::Off {
+                                    "OFF".to_string()
+                                } else {
+                                    "Ready".to_string()
+                                };
                             self.update_hosts_in_status();
                             self.update_snapshot_cache();
                             Ok(())
@@ -151,6 +162,12 @@ impl AppActor {
                         let config: AppConfig = toml::from_str(&content)
                             .map_err(|e| AppError::msg(format!("parse config form: {e}")))?;
                         self.state.config = config;
+                        self.state.status.current_operation =
+                            if self.state.config.sync_mode == SyncMode::Off {
+                                "OFF".to_string()
+                            } else {
+                                "Ready".to_string()
+                            };
                         self.update_hosts_in_status();
                         self.state
                             .config
@@ -162,7 +179,41 @@ impl AppActor {
                     let _ = tx.send(res);
                 }
                 AppMessage::RequestSync(trigger) => {
-                    if self.state.syncing {
+                    if self.state.config.sync_mode == SyncMode::Off {
+                        match trigger {
+                            SyncTrigger::Manual => {
+                                self.state.config.sync_mode = SyncMode::Slew;
+                                if let Err(e) = self.state.config.save(&self.config_path) {
+                                    self.state.logs.push(format!(
+                                        "E: failed to save config on mode change: {e}"
+                                    ));
+                                } else {
+                                    self.state.logs.push(
+                                        "Switched sync_mode from off to slew (progressive)"
+                                            .to_string(),
+                                    );
+                                }
+                                self.state.syncing = true;
+                                self.state.status.current_operation =
+                                    format!("Syncing ({trigger})");
+                                self.update_hosts_in_status();
+                                self.state.logs.push(format!("Starting {trigger} sync"));
+
+                                let config = self.state.config.clone();
+                                let config_path = self.config_path.clone();
+                                let tx = self.sender.clone();
+
+                                tokio::spawn(async move {
+                                    let result = perform_sync(&config, &config_path).await;
+                                    let _ =
+                                        tx.send(AppMessage::SyncFinished(result, trigger)).await;
+                                });
+                            }
+                            _ => {
+                                self.state.status.current_operation = "OFF".to_string();
+                            }
+                        }
+                    } else if self.state.syncing {
                         self.state
                             .logs
                             .push(format!("Sync ignored: already running ({trigger})"));

@@ -15,7 +15,7 @@ pub fn SummaryPanel() -> impl View {
             ),]
             .class("grid metrics"),
             ResourceState::Ready(snapshot) | ResourceState::Reloading(snapshot) => div![
-                MetricCard("Status").value(snapshot.status.current_operation.clone()).subtitle(format!("Config: {}", snapshot.config_path)),
+                MetricCard("Status").value(if snapshot.config.sync_mode == SyncMode::Off { "OFF".to_string() } else { snapshot.status.current_operation.clone() }).subtitle(format!("Config: {}", snapshot.config_path)),
                 MetricCard("Health").value(format!("{}/{} OK", enabled_hosts(&snapshot.config) - failing_hosts(&snapshot), snapshot.config.hosts.len())).subtitle(format!("Syncing: {}", if snapshot.syncing { "yes" } else { "no" })),
                 MetricCard("Enabled hosts").value(format!("{}/{}", enabled_hosts(&snapshot.config), snapshot.config.hosts.len())).subtitle(sync_mode_label(snapshot.config.sync_mode).to_string()),
                 MetricCard("Delay").value(TimeSpan(snapshot.config.delay_ms)).subtitle(span!["Timeout: ", TimeSpan(snapshot.config.network_timeout_ms)]),
@@ -67,7 +67,14 @@ pub fn ServicePanel() -> impl View {
                             "Mode",
                             sync_mode_label(snapshot.config.sync_mode).to_string()
                         ),
-                        kv_row("Status", snapshot.status.current_operation.clone()),
+                        kv_row(
+                            "Status",
+                            if snapshot.config.sync_mode == SyncMode::Off {
+                                "OFF".to_string()
+                            } else {
+                                snapshot.status.current_operation.clone()
+                            }
+                        ),
                         kv_row("Config file", snapshot.config_path.clone()),
                         kv_row("User agent", snapshot.config.user_agent.clone()),
                         kv_row(
